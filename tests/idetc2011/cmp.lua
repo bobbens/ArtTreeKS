@@ -1,7 +1,8 @@
 
 
+require "dir_path"
+
 fname       = { "saved_syn", "gen_syn" }
-dir_path    = "res_index_middle_thumb_3_333v2"
 
 
 function load_syn( filename )

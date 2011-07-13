@@ -1,8 +1,8 @@
 
+require "dir_path"
 
-dirname  = "res_index_middle_thumb_3_333v2"
-out      = dirname.."/exp%03d.lua"
-data_path = dirname.."/data.csv"
+out      = dir_path.."/exp%03d.lua"
+data_path = dir_path.."/data.csv"
 echo     = "echo "
 echo     = ""
 
@@ -45,7 +45,7 @@ function process_file( filename, filesave, datout )
    if not exists then
       dout:write( "i,best,generations,elapsed\n" )
    end
-   dout:write( string.format( "%d,%e,%d,%d", i, res.fit_best, res,generations, res.elapsed ) )
+   dout:write( string.format( "%d,%e,%d,%d", i, res.fit_best, res.generations, res.elapsed ) )
    dout:close()
 end
 

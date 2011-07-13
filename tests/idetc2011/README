@@ -6,11 +6,10 @@ Procedure:
       1.2) set fingers wanted
       1.3) set axes
    2) Run test.lua to generate test_run.lua and test_run_base.lua
-   3) Adjust experiment.lua to output information
+   3) Adjust dir_path.lua for output directory
    4) Run experiment.lua
    5) SIGINT when enough data has been obtained
-   6) Adjust cmp.lua to use the proper directory
-   7) Run cmp.lua to detect repeated solutions
+   6) Run cmp.lua to detect repeated solutions
 
 Standalone:
 
