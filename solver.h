@@ -126,6 +126,21 @@ void nlopt_options_default( nlopt_options_t *opts );
 int syn_solve_nlopt( synthesis_t *syn, nlopt_options_t *opts, nlopt_info_t *info );
 
 
+typedef struct cmaes_options_s {
+   int lambda;             /**< Population parameter, >= 2. */
+} cmaes_options_t;
+
+
+typedef struct cmaes_info_s {
+   double minf;            /**< Minimum fitness found. */
+   unsigned long elapsed;  /**< ELapsed time in seconds. */
+} cmaes_info_t;
+
+
+void cmaes_options_default( cmaes_options_t *opts );
+int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info );
+
+
 #endif /* _SOLVER_H */
 
 

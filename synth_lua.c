@@ -102,6 +102,7 @@ static int synL_solve_minpack( lua_State *L );
 #ifdef HAVE_NLOPT
 static int synL_solve_nlopt( lua_State *L );
 #endif /* HAVE_NLOPT */
+static int synL_solve_cmaes( lua_State *L );
 static int synL_solve_ga( lua_State *L );
 static int synL_print( lua_State *L );
 static int synL_save( lua_State *L );
@@ -125,6 +126,7 @@ static const luaL_reg synL_methods[] = {
 #ifdef HAVE_NLOPT
    { "solver_nlopt", synL_solve_nlopt },
 #endif /* HAVE_NLOPT */
+   { "solver_cmaes", synL_solve_cmaes },
    { "print", synL_print },
    { "save", synL_save },
    { "raw_x", synL_raw_x },
@@ -756,6 +758,19 @@ static int synL_solve_nlopt( lua_State *L )
    return 0;
 }
 #endif /* HAVE_NLOPT */
+
+static int synL_solve_cmaes( lua_State *L )
+{
+   cmaes_options_t opts;
+   cmaes_info_t info;
+   synthesis_t *syn = luaL_checksyn(L,1);
+
+   /* Solve. */
+   syn_solve_cmaes( syn, &opts, &info );
+
+   /* Push info. */
+   return 0;
+}
 
 static int synL_print( lua_State *L )
 {
