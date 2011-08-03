@@ -41,7 +41,7 @@ function process_file( filename, filesave, datout )
       exists = true
       dout:close()
    end
-   dout     = io.open( datout, "w" )
+   dout     = io.open( datout, "a" )
    if not exists then
       dout:write( "i,best,generations,elapsed\n" )
    end
