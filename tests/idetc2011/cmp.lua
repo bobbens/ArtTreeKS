@@ -61,7 +61,9 @@ end
 
 list = {}
 for filename, iter in dirtree( dir_path ) do
-   list[ #list+1 ] = filename
+   if string.find( filename, ".lua$" ) ~= nil then
+      list[ #list+1 ] = filename
+   end
 end
 
 eq_syn = {}
@@ -71,7 +73,7 @@ for i=1,#list-1 do
       if equal then
          eq_syn[ #eq_syn+1 ] = { list[i], list[j] }
       end
-      print( equal, list[i], list[j] )
+      --print( equal, list[i], list[j] )
    end
 end
 
