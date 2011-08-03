@@ -16,6 +16,8 @@
 
 #include <math.h>
 
+#include <dq/vec3.h>
+
 #include "cmaes_interface.h"
 
 
@@ -28,6 +30,18 @@ void cmaes_options_default( cmaes_options_t *opts )
    assert( opts != NULL );
    memset( opts, 0, sizeof(cmaes_options_t) );
    opts->lambda = 100;
+}
+
+
+/**
+ * @brief Normalizes a plucker coordinate.
+ */
+static void plucker_normalize( plucker_t *P )
+{
+   double c[3];
+   vec3_normalize( P->s );
+   vec3_cross( c, P->s, P->s0 );
+   vec3_cross( P->s0, c, P->s );
 }
 
 
@@ -46,13 +60,14 @@ void cmaes_options_default( cmaes_options_t *opts )
 int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info )
 {
    cmaes_t evo;
-   int p, i, dim, lambda, npop;
+   int iter, p, i, dim, lambda, npop;
    double fit, *fitvals, *stddev, *xfinal;
    double *const *pop;
+   kin_joint_t *kj;
 
    /* Parameters. */
    dim      = syn->n; /**< Dimension of the system. */
-   lambda   = 100;
+   lambda   = 250;
 
    /* Map to use as initial position. */
    syn_map_to_x( syn, NULL, NULL, syn->x );
@@ -60,7 +75,7 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
    /* Standard deviation. */
    stddev = calloc( syn->n, sizeof(double) );
    for (i=0; i<syn->n; i++) {
-      syn->x[i] = 0.0;
+      syn->x[i] = 0.5;
       stddev[i] = 0.5; /* Todo smarter initialization. */
    }
 
@@ -76,6 +91,8 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
    printf( "%s\n", cmaes_SayHello(&evo) );
    //cmaes_ReadSignals( &evo, "signals.par" );
 
+   /* Start iterating fool! */
+   iter = 0;
    while (!cmaes_TestForTermination( &evo )) {
       pop   = cmaes_SamplePopulation( &evo );
       npop  = cmaes_Get( &evo, "popsize" );
@@ -83,13 +100,20 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
       /* Here we must analyze each member in the population. */
       for (p=0; p<npop; p++) {
 
-         /* Todo reenforce plucker coordinates here */
-
          /* First map to synthesis. */
          syn_map_from_x( syn, pop[p], syn->n );
+
+         /* Reenforce plucker coordinates here */
+         for (i=0; i<syn->njoints; i++) {
+            kj = syn->joints[i];
+            if (kj->claim_S != NULL)
+               plucker_normalize( &kj->S );
+         }
+
          /* Process branches. */
          for (i=0; i<syn->nbranches; i++)
             syn_calc_branch( syn, &syn->branches[i] );
+
          /* Map back. */
          syn_map_to_fvec( syn, NULL, NULL, syn->fvec );
 
@@ -105,7 +129,8 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
       /* Update the distribution. */
       cmaes_UpdateDistribution( &evo, fitvals );
 
-      printf( "Best: %.3e\n", cmaes_Get( &evo, "fbestever" ) );
+      iter++;
+      printf( "[%d] Best: %.3e\n", iter, cmaes_Get( &evo, "fbestever" ) );
    }
 
    /* Map. */
