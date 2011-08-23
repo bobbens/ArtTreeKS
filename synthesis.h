@@ -34,6 +34,9 @@ struct kin_object_s;
 typedef struct kin_object_s kin_object_t;
 
 
+/**
+ * @brief Joint types.
+ */
 typedef enum kin_joint_type_e {
    JOINT_TYPE_NULL,        /**< Invalid or non-existant joint. */
    JOINT_TYPE_REVOLUTE,    /**< Revolutoin joint. */
@@ -42,7 +45,24 @@ typedef enum kin_joint_type_e {
 
 
 /**
+ * @brief Joint data.
+ */
+typedef struct kin_joint_data_s {
+   int nvalues;         /**< Number of values. */
+   double *values;      /**< Values of each value. */
+   double *values_lb;   /**< Lower bounds for each value. */
+   double *values_ub;   /**< Upper bounds for each value. */
+   int *values_bool;    /**< Whether or not value really matters. */
+   kin_claim_t *claim;  /**< Claim data. */
+   int constant;        /**< Is the data constant? */
+} kin_joint_data_t;
+
+
+/**
  * @brief Kinematic joint structure.
+ *
+ * Joint data depends on the joint type. In the case of rotation we always use
+ * radians, while translations will be in the reference unit being used.
  */
 typedef struct kin_joint_s {
    int const_S;            /**< Whether or not the axis of rotation of the joint is constant. */
@@ -55,18 +75,13 @@ typedef struct kin_joint_s {
    plucker_t S_ub;   /**< Plucker upper bound. */
 
    /* Current data. */
-   double *pos;      /**< Positions, units depend on type of joint:
-                      *    - REVOLUTE : radians
-                      *    - PRISMATIC : mm (or whatever you consider the base unit to be)
-                      */
-   double *pos_lb;   /**< Position lower bounds. */
-   double *pos_ub;   /**< Position upper bounds. */
-   int    npos;      /**< Number of positions. */
+   kin_joint_data_t pos; /**< Position data. */
+   kin_joint_data_t vel; /**< Velocity data. */
+   kin_joint_data_t acc; /**< Acceleration data. */
    double cond[2];   /**< Stores the plucker conditions. */
 
    /* Claims. */
    kin_claim_t *claim_S;     /**< Claim of plucker variables (structural). */
-   kin_claim_t *claim_pos;   /**< Claim of position variables (joint). */
    kin_claim_t *claim_cond;  /**< Claim of plucker conditions. */
    kin_claim_t *claim_const; /**< Constraint offset. */
 
@@ -99,12 +114,19 @@ typedef struct kin_tcp_data_s {
    /* Data itself. */
    dq_t *P;    /**< Poses, the first is absolute (G), the rest are actually relative transformations.
                     To convert to absolute multiply by the first (G). */
+   plucker_t *V; /**< Velocity information. */
+   plucker_t *A; /**< Acceleration information. */
    int  nP;    /**< Number of poses to calculate for. */
-   dq_t *fvec; /**< Plucker coordinate variables. */
    int constant; /**< Whether or not the TCP changes. */
 
+   dq_t *fvec_pos; /**< Position coordinate variables. */
+   plucker_t *fvec_vel; /**< Velocity coordinate variables. */
+   plucker_t *fvec_acc; /**< Acceleration coordinate values. */
+
    /* Pointer information. */
-   kin_claim_t *claim_fvec; /**< Offset in fvec. */
+   kin_claim_t *claim_pos; /**< Offset in fvec for positions. */
+   kin_claim_t *claim_vel; /**< Offset in fvec for velocities. */
+   kin_claim_t *claim_acc; /**< Offset in fvec for accelerations. */
 } kin_tcp_data_t;
 
 
@@ -133,7 +155,7 @@ typedef struct kin_object_func_s {
  * @brief Represents a large kinematic object.
  */
 struct kin_object_s {
-   kin_object_t *next; /**< Linked list. */
+   kin_object_t *next;     /**< Linked list. */
 
    /* Function pointers. */
    kin_object_func_t f;    /**< Function pointers to use. */
@@ -236,11 +258,17 @@ void kin_joint_dupInit( kin_joint_t *nj, const kin_joint_t *oj );
 int kin_joint_claim( synthesis_t *syn, kin_joint_t *joint );
 void kin_joint_setPlucker( kin_joint_t *joint, double s[3], double s0[3] );
 void kin_joint_setPositions( kin_joint_t *joint, double *x, int len );
+void kin_joint_setVelocities( kin_joint_t *joint, double *v, int len );
+void kin_joint_setAccelerations( kin_joint_t *joint, double *a, int len );
 void kin_joint_setConstS( kin_joint_t *joint, int constant );
 void kin_joint_setConstPos( kin_joint_t *joint, int constant );
 void kin_joint_setPluckerBounds( kin_joint_t *joint,
       double *S_lb, double *S_ub, double *S0_lb, double *S0_ub );
 void kin_joint_setPositionBounds( kin_joint_t *joint,
+      double *lb, double *ub, int len );
+void kin_joint_setVelocityBounds( kin_joint_t *joint,
+      double *lb, double *ub, int len );
+void kin_joint_setAccelerationBounds( kin_joint_t *joint,
       double *lb, double *ub, int len );
 
 

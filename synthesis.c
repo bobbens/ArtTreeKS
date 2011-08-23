@@ -24,6 +24,10 @@ static int syn_construct_branches_walk( synthesis_t *syn, kin_branch_iter_t *bra
 static int syn_branch_iter_walk( synthesis_t *syn,
       int (*func)(synthesis_t*, kin_branch_iter_t*, void*),
       void *data, kin_branch_iter_t *head, kin_branch_iter_t *last );
+/* Joints. */
+static void kin_joint_data_free( kin_joint_data_t *data );
+static void kin_joint_data_dup( kin_joint_data_t *dest, const kin_joint_data_t *src );
+static int kin_joint_data_claim( synthesis_t *syn, kin_joint_data_t *data );
 /* Saving. */
 static int kin_obj_save( const kin_object_t *obj, FILE *stream, int depth, const char *sym );
 /* Finalization. */
@@ -243,7 +247,7 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
       /* Concatenate relrative displacements around axes. */
       for (i=0; i<branch->njoints; i++) {
          j = branch->joints[i];
-         dq_cr_rotation_plucker( R, j->pos[m], j->S.s, j->S.s0 );
+         dq_cr_rotation_plucker( R, j->pos.values[m], j->S.s, j->S.s0 );
          dq_op_mul( T, T, R );
       }
 
@@ -253,7 +257,7 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
          dq_op_sign( T, T );
 
       /* Store in fvec: T-P. */
-      dq_op_sub( branch->tcp->d.tcp.fvec[m], T, branch->tcp->d.tcp.P[m+1] );
+      dq_op_sub( branch->tcp->d.tcp.fvec_pos[m], T, branch->tcp->d.tcp.P[m+1] );
    }
    return 0;
 }
@@ -330,6 +334,21 @@ int kin_joint_init( kin_joint_t *joint, kin_joint_type_t type )
 
 
 /**
+ * @brief Frees the kinematic joint data.
+ */
+static void kin_joint_data_free( kin_joint_data_t *data )
+{
+   free( data->values );
+   free( data->values_lb );
+   free( data->values_ub );
+   free( data->values_bool );
+#ifndef NDEBUG
+   memset( data, 0, sizeof(kin_joint_data_t) );
+#endif /* NDEBUG */
+}
+
+
+/**
  * @brief Frees the datastructure in joint.
  *
  *    @param joint Joint to free.
@@ -337,9 +356,31 @@ int kin_joint_init( kin_joint_t *joint, kin_joint_type_t type )
  */
 void kin_joint_free( kin_joint_t *joint )
 {
-   free( joint->pos );
-   free( joint->pos_lb );
-   free( joint->pos_ub );
+   kin_joint_data_free( &joint->pos );
+   kin_joint_data_free( &joint->vel );
+   kin_joint_data_free( &joint->acc );
+}
+
+
+/**
+ * @brief Duplicates data
+ */
+static void kin_joint_data_dup( kin_joint_data_t *dest, const kin_joint_data_t *src )
+{
+   dest->nvalues = src->nvalues;
+   dest->constant = src->constant;
+
+   if (src->values != NULL)
+      dest->values      = memdup( src->values,      src->nvalues * sizeof(double) );
+
+   if (src->values_lb != NULL)
+      dest->values_lb   = memdup( src->values_lb,   src->nvalues * sizeof(double) );
+
+   if (src->values_ub != NULL)
+      dest->values_ub   = memdup( src->values_ub,   src->nvalues * sizeof(double) );
+
+   if (src->values_bool != NULL)
+      dest->values_bool = memdup( src->values_bool, src->nvalues * sizeof(int) );
 }
 
 
@@ -361,13 +402,27 @@ void kin_joint_dupInit( kin_joint_t *nj, const kin_joint_t *oj )
    memcpy( &nj->S_ub, &oj->S_ub, sizeof(plucker_t) );
 
    /* Duplicate position memory. */
-   nj->npos      = oj->npos;
-   nj->pos       = memdup( oj->pos,    oj->npos * sizeof(double) );
-   nj->pos_lb    = memdup( oj->pos_lb, oj->npos * sizeof(double) );
-   nj->pos_ub    = memdup( oj->pos_ub, oj->npos * sizeof(double) );
+   kin_joint_data_dup( &nj->pos, &oj->pos );
+   kin_joint_data_dup( &nj->vel, &oj->vel );
+   kin_joint_data_dup( &nj->acc, &oj->acc );
 
    /* Copy conditional data. */
    memcpy( nj->cond, oj->cond, 2*sizeof(double) );
+}
+
+
+/**
+ * @brief Claims joint data.
+ */
+static int kin_joint_data_claim( synthesis_t *syn, kin_joint_data_t *data )
+{
+   assert( data->claim == NULL );
+   if (data->values != NULL) {
+      assert( data->nvalues == syn->L-1 );
+      data->claim = syn_claim_x( syn, data->nvalues, data->nvalues,
+            data->values, data->values_lb, data->values_ub );
+   }
+   return 0;
 }
 
 
@@ -380,12 +435,14 @@ int kin_joint_claim( synthesis_t *syn, kin_joint_t *joint )
 {
    /* We must make sure it's not previously initialized and that data is valid. */
    assert( joint->claim_S == NULL );
-   assert( joint->claim_pos == NULL );
    assert( joint->claim_cond == NULL );
    assert( joint->claim_const == NULL );
-   assert( joint->pos != NULL );
-   assert( joint->npos == syn->L-1 );
    assert( syn->L > 0 );
+
+   /* Claim the data. */
+   kin_joint_data_claim( syn, &joint->pos );
+   kin_joint_data_claim( syn, &joint->vel );
+   kin_joint_data_claim( syn, &joint->acc );
 
    /* Claim joint axis if necessary. */
    if (!joint->const_S) {
@@ -395,10 +452,6 @@ int kin_joint_claim( synthesis_t *syn, kin_joint_t *joint )
       joint->claim_cond = syn_claim_fvec( syn, 2, 0, joint->cond );
    }
 
-   /* Claims the position data if necessary. */
-   if (!joint->const_pos) {
-      joint->claim_pos  = syn_claim_x(    syn, joint->npos, joint->npos, joint->pos, joint->pos_lb, joint->pos_ub );
-   }
    return 0;
 }
 
@@ -420,6 +473,31 @@ void kin_joint_setPlucker( kin_joint_t *joint, double s[3], double s0[3] )
 
 
 /**
+ * @brief Sets the data for a joint.
+ *    @param data Joint data to set.
+ *    @param x Vector to set.
+ *    @param len Length of vector.
+ *    @param lb Default low bound value.
+ *    @param ub Default upper bound value.
+ */
+static void kin_joint_data_set( kin_joint_data_t *data, double *x, int len, double lb, double ub )
+{
+   int i;
+
+   assert( data->values == NULL );
+
+   data->nvalues   = len;
+   data->values    = memdup( x, len * sizeof(double) );
+   data->values_lb = memmalloc( len * sizeof(double) );
+   data->values_ub = memmalloc( len * sizeof(double) );
+   for (i=0; i<len; i++) {
+      data->values_lb[i] = lb;
+      data->values_ub[i] = ub;
+   }
+}
+
+
+/**
  * @brief Sets the positions.
  *    @param joint Joint to set positions of.
  *    @param x X positions to set.
@@ -427,20 +505,31 @@ void kin_joint_setPlucker( kin_joint_t *joint, double s[3], double s0[3] )
  */
 void kin_joint_setPositions( kin_joint_t *joint, double *x, int len )
 {
-   int i;
+   kin_joint_data_set( &joint->pos, x, len, 0., 2.*M_PI );
+}
 
-   assert( joint->pos == NULL );
 
-   joint->pos = memmalloc( len*sizeof(double) );
-   joint->npos = len;
-   memcpy( joint->pos, x, len*sizeof(double) );
+/**
+ * @brief Sets the velocities.
+ *    @param joint Joint to set velocities of.
+ *    @param v Velocities to set.
+ *    @param len Length of velocity vector.
+ */
+void kin_joint_setVelocities( kin_joint_t *joint, double *v, int len )
+{
+   kin_joint_data_set( &joint->vel, v, len, -M_PI, M_PI );
+}
 
-   joint->pos_lb = memmalloc( len*sizeof(double) );
-   joint->pos_ub = memmalloc( len*sizeof(double) );
-   for (i=0; i<len; i++) {
-      joint->pos_lb[i] = 0.;
-      joint->pos_ub[i] = M_PI*2.;
-   }
+
+/**
+ * @brief Sets the accelerations.
+ *    @param joint Joint to set accelerations of.
+ *    @param a Accelerations to set.
+ *    @param len Length of the accelerations vector.
+ */
+void kin_joint_setAccelerations( kin_joint_t *joint, double *a, int len )
+{
+   kin_joint_data_set( &joint->vel, a, len, -M_PI, M_PI );
 }
 
 
@@ -463,8 +552,8 @@ void kin_joint_setConstS( kin_joint_t *joint, int constant )
  */
 void kin_joint_setConstPos( kin_joint_t *joint, int constant )
 {
-   assert( joint->claim_pos == NULL );
-   joint->const_pos = constant;
+   assert( joint->pos.claim == NULL );
+   joint->pos.constant = constant;
 }
 
 
@@ -479,13 +568,13 @@ void kin_joint_setConstPos( kin_joint_t *joint, int constant )
 void kin_joint_setPluckerBounds( kin_joint_t *joint,
       double *S_lb, double *S_ub, double *S0_lb, double *S0_ub )
 {
-#ifndef NODEBUG
+#ifndef NDEBUG
    int i;
    for (i=0; i<3; i++) {
       assert( S_lb[i]  <= S_ub[i] );
       assert( S0_lb[i] <= S0_ub[i] );
    }
-#endif /* NODEBUG */
+#endif /* NDEBUG */
 
    if (S_lb != NULL)
       memcpy( joint->S_lb.s,  S_lb,  sizeof(double)*3 );
@@ -500,6 +589,29 @@ void kin_joint_setPluckerBounds( kin_joint_t *joint,
 
 
 /**
+ * @brief Sets the data bounds.
+ *    @param data Data to set bounds of.
+ *    @param lb Lower bounds.
+ *    @param ub Upper bonds.
+ *    @param len Length.
+ */
+static void kin_joint_data_setBounds( kin_joint_data_t *data,
+      double *lb, double *ub, int len )
+{
+#ifndef NDEBUG
+   int i;
+   for (i=0; i<len; i++)
+      assert( lb[i] <= ub[i] );
+#endif /* NDEBUG */
+   assert (len == data->nvalues );
+
+   /* Copy values over. */
+   memcpy( data->values_lb, lb, len * sizeof(double) );
+   memcpy( data->values_ub, ub, len * sizeof(double) );
+}
+
+
+/**
  * @brief Sets the position bounds for the joint parameters in a joint.
  *    @param joint Joint to set position bounds of.
  *    @param lb Lower bound vector.
@@ -509,15 +621,35 @@ void kin_joint_setPluckerBounds( kin_joint_t *joint,
 void kin_joint_setPositionBounds( kin_joint_t *joint,
       double *lb, double *ub, int len )
 {
-   assert( len == joint->npos );
-#ifndef NODEBUG
-   int i;
-   for (i=0; i<len; i++) {
-      assert( lb[i] <= ub[i] );
-   }
-#endif /* NODEBUG */
-   memcpy( joint->pos_lb, lb, len*sizeof(double) );
-   memcpy( joint->pos_ub, ub, len*sizeof(double) );
+   kin_joint_data_setBounds( &joint->pos, lb, ub, len );
+}
+
+
+/**
+ * @brief Sets the velocity bounds for the joint parameters in a joint.
+ *    @param joint Joint to set velocity bounds of.
+ *    @param lb Lower bound vector.
+ *    @param ub Upper bound vector.
+ *    @param len Length of both lower and upper bounds which must match length of joint parameter vector.
+ */
+void kin_joint_setVelocityBounds( kin_joint_t *joint,
+      double *lb, double *ub, int len )
+{
+   kin_joint_data_setBounds( &joint->vel, lb, ub, len );
+}
+
+
+/**
+ * @brief Sets the acceleration bounds for the joint parameters in a joint.
+ *    @param joint Joint to set acceleration bounds of.
+ *    @param lb Lower bound vector.
+ *    @param ub Upper bound vector.
+ *    @param len Length of both lower and upper bounds which must match length of joint parameter vector.
+ */
+void kin_joint_setAccelerationBounds( kin_joint_t *joint,
+      double *lb, double *ub, int len )
+{
+   kin_joint_data_setBounds( &joint->acc, lb, ub, len );
 }
 
 
@@ -590,13 +722,13 @@ static int kin_obj_chain_save( const kin_object_t *obj, FILE *stream, const char
       p     = 0;
       p_lb  = 0;
       p_ub  = 0;
-      for (j=0; j<kj->npos; j++) {
+      for (j=0; j<kj->pos.nvalues; j++) {
          p += snprintf( &pos_str[p], sizeof(pos_str)-p,
-               PF"%s ", kj->pos[j], (j!=kj->npos-1) ? "," : "" );
+               PF"%s ", kj->pos.values[j], (j!=kj->pos.nvalues-1) ? "," : "" );
          p_lb += snprintf( &pos_lb_str[p_lb], sizeof(pos_lb_str)-p_lb,
-               PF"%s ", kj->pos_lb[j], (j!=kj->npos-1) ? "," : "" );
+               PF"%s ", kj->pos.values_lb[j], (j!=kj->pos.nvalues-1) ? "," : "" );
          p_ub += snprintf( &pos_ub_str[p_ub], sizeof(pos_ub_str)-p_ub,
-               PF"%s ", kj->pos_ub[j], (j!=kj->npos-1) ? "," : "" );
+               PF"%s ", kj->pos.values_ub[j], (j!=kj->pos.nvalues-1) ? "," : "" );
       }
       s     = kj->S.s;
       s0    = kj->S.s0;
@@ -634,7 +766,11 @@ static int kin_obj_chain_save( const kin_object_t *obj, FILE *stream, const char
 static int kin_obj_tcp_free( kin_object_t *obj )
 {
    free( obj->d.tcp.P );
-   free( obj->d.tcp.fvec );
+   free( obj->d.tcp.V );
+   free( obj->d.tcp.A );
+   free( obj->d.tcp.fvec_pos );
+   free( obj->d.tcp.fvec_vel );
+   free( obj->d.tcp.fvec_acc );
    return 0;
 }
 /**
@@ -661,14 +797,14 @@ static int kin_obj_tcp_dup( const kin_object_t *obj, kin_object_t *newobj )
 static int kin_obj_tcp_fin( kin_object_t *obj, synthesis_t *syn )
 {
    /* Claims. */
-   assert( obj->d.tcp.fvec == NULL );
-   assert( obj->d.tcp.claim_fvec == NULL );
+   assert( obj->d.tcp.fvec_pos == NULL );
+   assert( obj->d.tcp.claim_pos == NULL );
 
    /* We note that since they are relative to the reference position there's
     * only m-1 error dual quaternions. */
-   obj->d.tcp.fvec         = memcalloc( (syn->L-1), sizeof(dq_t) );
-   obj->d.tcp.claim_fvec   = syn_claim_fvec( syn, 8*(syn->L-1),
-         6*(syn->L-1), (double*)obj->d.tcp.fvec );
+   obj->d.tcp.fvec_pos     = memcalloc( (syn->L-1), sizeof(dq_t) );
+   obj->d.tcp.claim_pos    = syn_claim_fvec( syn, 8*(syn->L-1),
+         6*(syn->L-1), (double*)obj->d.tcp.fvec_pos );
    /* Add tcp to list. */
    syn_tcp_add( syn, obj );
    return 0;
@@ -1264,6 +1400,9 @@ static void* memdup( void *base, size_t size )
 }
 
 
+/**
+ * @brief Calloc wrapper.
+ */
 static void* memcalloc( size_t nmemb, size_t size )
 {
    void *mem;
@@ -1275,6 +1414,9 @@ static void* memcalloc( size_t nmemb, size_t size )
 }
 
 
+/**
+ * @brief Malloc wrapper.
+ */
 static void* memmalloc( size_t size )
 {
    void *mem;
@@ -1286,6 +1428,9 @@ static void* memmalloc( size_t size )
 }
 
 
+/**
+ * @brief Realloc wrapper.
+ */
 static void* memrealloc( void *ptr, size_t size )
 {
    void *mem;
@@ -1567,7 +1712,7 @@ int syn_finalize( synthesis_t *syn )
    kin_joint_t *kj;
    for (i=0; i<syn->njoints; i++) {
       kj = syn->joints[i];
-      assert( kj->npos == syn->L-1 );
+      assert( kj->pos.nvalues == syn->L-1 );
 #if 0
       int j;
       for (j=0; j<3; j++) {
@@ -1580,7 +1725,7 @@ int syn_finalize( synthesis_t *syn )
          assert( kj->pos_lb[j] <= kj->pos[j] );
          assert( kj->pos_ub[j] >= kj->pos[j] );
       }
-#endif /* NODEBUG */
+#endif /* NDEBUG */
    }
 
    /* Create branches. */
@@ -1904,8 +2049,8 @@ void syn_printfDetail( FILE* stream, const synthesis_t *syn )
          fprintf( stream, "      %d:  [ %.3e, %.3e, %.3e ] x [ %.3e, %.3e, %.3e ] (%.3e)\n", j,
                t[0], t[1], t[2], t0[0], t0[1], t0[2],
                vec3_dot( t, t0 ) );
-         for (k=0; k<kj->npos; k++)
-            fprintf( stream, "          [%d] %.3e\n", k, kj->pos[k] );
+         for (k=0; k<kj->pos.nvalues; k++)
+            fprintf( stream, "          [%d] %.3e\n", k, kj->pos.values[k] );
       }
    }
    err = 0.;

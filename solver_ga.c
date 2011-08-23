@@ -369,9 +369,9 @@ static void ga_ent_seed( ga_entity_t *ent, const synthesis_t *syn, const ga_opti
                kj->S.s0[0], kj->S.s0[1], kj->S.s0[2],
                vec3_dot( kj->S.s, kj->S.s0 ) );
       }
-      if (kj->claim_pos != NULL) {
-         for (j=0; j<kj->npos; j++) {
-            LOG( v>2&&v<=9, "      pos[%d] = %.3e\n", j, kj->pos[j] );
+      if (kj->pos.claim != NULL) {
+         for (j=0; j<kj->pos.nvalues; j++) {
+            LOG( v>2&&v<=9, "      pos[%d] = %.3e\n", j, kj->pos.values[j] );
          }
       }
    }
@@ -409,14 +409,14 @@ static void ga_ent_mutate( ga_entity_t *ent, const synthesis_t *parent, const ga
                return;
             rj = rand_int_range( 0, ent->syn->njoints-1 );
             j++;
-         } while (ent->syn->joints[rj]->claim_pos == NULL);
+         } while (ent->syn->joints[rj]->pos.claim == NULL);
          /* Random position. */
-         if (ent->syn->joints[rj]->claim_pos != NULL) {
+         if (ent->syn->joints[rj]->pos.claim != NULL) {
             ra = rand_int_range( 0, ent->syn->L-2 ); /* It's from 0 to L-1 */
             /* Calculate bounds. */
-            lb    = parent->joints[rj]->pos_lb[ra];
-            ub    = parent->joints[rj]->pos_ub[ra];
-            ent->syn->joints[rj]->pos[ra] = rand_double_range( lb, ub );
+            lb    = parent->joints[rj]->pos.values_lb[ra];
+            ub    = parent->joints[rj]->pos.values_ub[ra];
+            ent->syn->joints[rj]->pos.values[ra] = rand_double_range( lb, ub );
          }
       }
    }
