@@ -78,6 +78,7 @@ typedef struct kin_joint_s {
    kin_joint_data_t pos; /**< Position data. */
    kin_joint_data_t vel; /**< Velocity data. */
    kin_joint_data_t acc; /**< Acceleration data. */
+   plucker_t S_cur;  /**< Current joint position, used for calculating. */
    double cond[2];   /**< Stores the plucker conditions. */
 
    /* Claims. */
@@ -90,6 +91,9 @@ typedef struct kin_joint_s {
 } kin_joint_t;
 
 
+/**
+ * @brief Type of kinematic object.
+ */
 typedef enum kin_object_type_e {
    KIN_TYPE_NULL,       /**< Invalid or nonexistant object. */
    KIN_TYPE_CHAIN,      /**< Kinematic serial chain. */

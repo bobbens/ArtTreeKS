@@ -138,7 +138,7 @@ static int syn_construct_branches( synthesis_t *syn )
    n = syn_branch_iter( syn, syn_construct_branches_count, NULL );
    assert( n > 0 );
 
-   /** Allocate branches. */
+   /* Allocate branches. */
    syn->nbranches = n;
    syn->branches  = memcalloc( syn->nbranches, sizeof(kin_branch_t) );
 
@@ -220,13 +220,75 @@ static int syn_branch_iter_walk( synthesis_t *syn,
 
 
 /**
+ * @brief Multiple and accumulate for Lie algebra elements.
+ *    @param[out] dest Destination buffer.
+ *    @param[in] val Value to multiply the source by.
+ *    @param[in] src Source element.
+ */
+static void lie_joint_mac( plucker_t *dest,
+      double val, const plucker_t *src )
+{
+   int i;
+   for (i=0; i<3; i++)
+      dest->s[i]  = val * src->s[i];
+   for (i=0; i<3; i++)
+      dest->s0[i] = val * src->s0[i];
+}
+
+
+/**
+ * @brief Does the Lie bracket operation.
+ *    @param[out] O Output Lie algebra element.
+ *    @param[in] A Input element 1.
+ *    @param[in] B Input element 2.
+ */
+static void lie_joint_bracket( plucker_t *O,
+      const plucker_t *A, const plucker_t *B )
+{
+   plucker_t T;
+   double a[3], b[3];
+
+   vec3_cross( T.s,  A->s,    B->s  );
+   vec3_cross( a,    A->s,    B->s0 );
+   vec3_cross( b,    A->s0,   B->s  );
+   vec3_add(   T.s0, a,       b     );
+
+   memcpy( O, &T, sizeof(plucker_t) );
+}
+
+
+/**
+ * @brief Zeros a plucker coordinate (or Lie algebra element).
+ *    @param p Element to zero.
+ */
+static void plucker_zero( plucker_t *p )
+{
+   memset( p, 0, sizeof(plucker_t) );
+}
+
+
+/**
+ * @brief Obtains the core screw element from the dual quaternion.
+ */
+static void plucker_from_dq( plucker_t *p, const dq_t Q )
+{
+   p->s[0]  = Q[1];
+   p->s[1]  = Q[2];
+   p->s[2]  = Q[3];
+   p->s0[0] = Q[4];
+   p->s0[1] = Q[5];
+   p->s0[2] = Q[6];
+}
+
+
+/**
  * @brief Calculates a branch.
  */
 int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
 {
-   int i, m;
+   int i, k, m;
    dq_t T, R;
-   kin_joint_t *j;
+   kin_joint_t *j, *jk;
    double p[3] = { 0., 0., 0. };
 
    /* Branch must make sense. */
@@ -244,9 +306,17 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
    for (m=0; m<syn->L-1; m++) {
       dq_cr_point( T, p ); /* Create identity dual quaternion. */
 
-      /* Concatenate relrative displacements around axes. */
+      /* Concatenate relative displacements around axes. */
       for (i=0; i<branch->njoints; i++) {
+         dq_t S;
          j = branch->joints[i];
+
+         /* Store current joint position. */
+         dq_cr_line_plucker( S, j->S.s, j->S.s0 );
+         dq_op_f2g( S, T, S );
+         plucker_from_dq( &j->S_cur, S );
+
+         /* Update propagation. */
          dq_cr_rotation_plucker( R, j->pos.values[m], j->S.s, j->S.s0 );
          dq_op_mul( T, T, R );
       }
@@ -258,7 +328,56 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
 
       /* Store in fvec: T-P. */
       dq_op_sub( branch->tcp->d.tcp.fvec_pos[m], T, branch->tcp->d.tcp.P[m+1] );
+
+      /* Update velocities. */
+      if (branch->tcp->d.tcp.fvec_vel != NULL) {
+         /* Initialize result. */
+         plucker_t v;
+         plucker_zero( &v );
+         /* Straight forward:
+          *    v = \sum v_i S_i
+          */
+         for (i=0; i<branch->njoints; i++) {
+            j = branch->joints[i];
+            lie_joint_mac( &v, j->vel.values[m], &j->S_cur );
+         }
+         /* Copy result. */
+         memcpy( &branch->tcp->d.tcp.fvec_vel[m], &v, sizeof(plucker_t) );
+      }
+
+      /* Update accelerations. */
+      if (branch->tcp->d.tcp.fvec_acc != NULL) {
+         /* Initialize result. */
+         plucker_t a;
+         plucker_zero( &a );
+         /* Straight forward sum part:
+          *    a_1 = \sum a_i S_i
+          */
+         for (i=0; i<branch->njoints; i++) {
+            j = branch->joints[i];
+            lie_joint_mac( &a, j->acc.values[m], &j->S_cur );
+         }
+         /* More complex coriolis part.
+          *    a_2 = \sum a_i \sum a_k [s_i, s_k]
+          */
+         for (i=0; i<branch->njoints-1; i++) {
+            plucker_t acc;
+            j = branch->joints[i];
+
+            plucker_zero( &acc );
+            for (k=i+1; k<branch->njoints; k++) {
+               plucker_t br;
+               jk = branch->joints[k];
+               lie_joint_bracket( &br, &j->S_cur, &jk->S_cur );
+               lie_joint_mac( &acc, jk->vel.values[m], &br );
+            }
+            lie_joint_mac( &a, j->vel.values[m], &acc );
+         }
+         /* Copy result. */
+         memcpy( &branch->tcp->d.tcp.fvec_acc[m], &a, sizeof(plucker_t) );
+      }
    }
+
    return 0;
 }
 
