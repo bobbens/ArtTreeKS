@@ -122,6 +122,8 @@ typedef struct kin_tcp_data_s {
    plucker_t *A; /**< Acceleration information. */
    int  nP;    /**< Number of poses to calculate for. */
    int constant; /**< Whether or not the TCP changes. */
+   int *vel_mask; /**< Velocity mask. */
+   int *acc_mask; /**< Acceleration mask. */
 
    dq_t *fvec_pos; /**< Position coordinate variables. */
    plucker_t *fvec_vel; /**< Velocity coordinate variables. */
@@ -299,6 +301,8 @@ int kin_obj_chain_joint_add( kin_object_t *chain, kin_joint_t *joint );
 int kin_obj_tcp_fk( kin_object_t *tcp, const dq_t *pos, int num );
 int kin_obj_tcp_velocity( kin_object_t *tcp, const plucker_t *vel, int num );
 int kin_obj_tcp_acceleration( kin_object_t *tcp, const plucker_t *vel, int num );
+int kin_obj_tcp_velocityMask( kin_object_t *tcp, const int *mask, int num );
+int kin_obj_tcp_accelerationMask( kin_object_t *tcp, const int *mask, int num );
 int kin_obj_tcp_fk_load( synthesis_t *syn, kin_object_t *obj, const char *file );
 int kin_obj_tcp_fk_setConst( kin_object_t *tcp, int constant );
 /* Splitter. */

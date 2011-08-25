@@ -56,10 +56,10 @@ static int kin_obj_split_dup( const kin_object_t *obj, kin_object_t *newobj );
 static int kin_obj_split_fin( kin_object_t *obj, synthesis_t *syn );
 static int kin_obj_split_save( const kin_object_t *obj, FILE *stream, const char *self );
 /* Helper functions. */
-static void* memdup( void *base, size_t size );
+static void* memdup( const void *base, size_t size );
 static void* memcalloc( size_t nmemb, size_t size );
 static void* memmalloc( size_t size );
-static void* memrealloc(void *ptr, size_t size);
+static void* memrealloc( void *ptr, size_t size );
 
 
 /**
@@ -118,6 +118,19 @@ static int syn_construct_branches_walk( synthesis_t *syn, kin_branch_iter_t *bra
       if (l->obj->type == KIN_TYPE_CHAIN)
          for (k=0; k<l->obj->d.chain.njoints; k++)
             b->joints[j++] = &l->obj->d.chain.joints[k];
+
+   /* Sanity checking. */
+   if ((b->tcp->d.tcp.claim_acc != NULL) &&
+         (b->tcp->d.tcp.claim_vel == NULL))
+      assert( "Velocity data can't be NULL if acceleration data is not NULL." );
+   for (k=0; k < b->tcp->d.tcp.nP; k++) {
+      if (((b->tcp->d.tcp.acc_mask == NULL) ||
+               (b->tcp->d.tcp.acc_mask[k] != 0)) &&
+            ((b->tcp->d.tcp.vel_mask != NULL) &&
+               (b->tcp->d.tcp.vel_mask[k] == 0))) {
+         assert( "Velocity mask must be a superset of acceleration mask." );
+      }
+   }
 
    /* Increment branch. */
    (*i)++;
@@ -330,7 +343,9 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
       dq_op_sub( branch->tcp->d.tcp.fvec_pos[m], T, branch->tcp->d.tcp.P[m+1] );
 
       /* Update velocities. */
-      if (branch->tcp->d.tcp.fvec_vel != NULL) {
+      if ((branch->tcp->d.tcp.fvec_vel != NULL) &&
+            ((branch->tcp->d.tcp.vel_mask == NULL) ||
+               (branch->tcp->d.tcp.vel_mask[m] != 0))) {
          /* Initialize result. */
          plucker_t v;
          plucker_zero( &v );
@@ -346,7 +361,9 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
       }
 
       /* Update accelerations. */
-      if (branch->tcp->d.tcp.fvec_acc != NULL) {
+      if ((branch->tcp->d.tcp.fvec_acc != NULL) &&
+            ((branch->tcp->d.tcp.acc_mask == NULL) ||
+               (branch->tcp->d.tcp.acc_mask[m] != 0))) {
          /* Initialize result. */
          plucker_t a;
          plucker_zero( &a );
@@ -1294,6 +1311,7 @@ int kin_obj_tcp_velocity( kin_object_t *tcp,
       assert( tcp->d.tcp.nP == num );
    }
 
+   assert( tcp->d.tcp.V == NULL );
    tcp->d.tcp.V      = memdup( (void*)vel, num * sizeof(plucker_t) );
    return 0;
 }
@@ -1314,7 +1332,48 @@ int kin_obj_tcp_acceleration( kin_object_t *tcp,
       assert( tcp->d.tcp.nP == num );
    }
 
-   tcp->d.tcp.V      = memdup( (void*)vel, num * sizeof(plucker_t) );
+   assert( tcp->d.tcp.A == NULL );
+   tcp->d.tcp.A      = memdup( (void*)vel, num * sizeof(plucker_t) );
+   return 0;
+}
+
+
+/**
+ * @brief Sets the velocity mask.
+ */
+int kin_obj_tcp_velocityMask( kin_object_t *tcp, const int *mask, int num )
+{
+   /* Only works on TCP. */
+   assert( tcp->type == KIN_TYPE_TCP );
+
+   if (tcp->d.tcp.nP == 0)
+      tcp->d.tcp.nP = num;
+   else {
+      assert( tcp->d.tcp.nP == num );
+   }
+
+   assert( tcp->d.tcp.vel_mask == NULL );
+   tcp->d.tcp.vel_mask = memdup( mask, num * sizeof(int) );
+   return 0;
+}
+
+
+/**
+ * @brief Sets the acceleration mask.
+ */
+int kin_obj_tcp_accelerationMask( kin_object_t *tcp, const int *mask, int num )
+{
+   /* Only works on TCP. */
+   assert( tcp->type == KIN_TYPE_TCP );
+
+   if (tcp->d.tcp.nP == 0)
+      tcp->d.tcp.nP = num;
+   else {
+      assert( tcp->d.tcp.nP == num );
+   }
+
+   assert( tcp->d.tcp.acc_mask == NULL );
+   tcp->d.tcp.acc_mask = memdup( mask, num * sizeof(int) );
    return 0;
 }
 
@@ -1563,7 +1622,7 @@ synthesis_t* syn_dup( const synthesis_t *syn )
 /**
  * @brief Duplicates memory.
  */
-static void* memdup( void *base, size_t size )
+static void* memdup( const void *base, size_t size )
 {
    void *mem;
    if (size == 0)
@@ -1888,6 +1947,9 @@ int syn_finalize( synthesis_t *syn )
       kj = syn->joints[i];
       assert( kj->pos.nvalues == syn->L-1 );
 #if 0
+      /* Do not actually use because the boundries can be outstepped by the solver,
+       * so this would cause it to assert and to fail when the kinematic structure
+       * is valid. */
       int j;
       for (j=0; j<3; j++) {
          assert( kj->S_lb.s[j]  <= kj->S.s[j] );
