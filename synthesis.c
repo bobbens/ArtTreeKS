@@ -924,6 +924,16 @@ static int kin_obj_tcp_fin( kin_object_t *obj, synthesis_t *syn )
    obj->d.tcp.fvec_pos     = memcalloc( (syn->L-1), sizeof(dq_t) );
    obj->d.tcp.claim_pos    = syn_claim_fvec( syn, 8*(syn->L-1),
          6*(syn->L-1), (double*)obj->d.tcp.fvec_pos );
+   if (obj->d.tcp.V != NULL) {
+      obj->d.tcp.fvec_vel  = memcalloc( syn->L, sizeof(dq_t) );
+      obj->d.tcp.claim_vel = syn_claim_fvec( syn, 6*syn->L,
+            6*syn->L, (double*)obj->d.tcp.fvec_vel );
+   }
+   if (obj->d.tcp.A != NULL) {
+      obj->d.tcp.fvec_acc  = memcalloc( syn->L, sizeof(dq_t) );
+      obj->d.tcp.claim_acc = syn_claim_fvec( syn, 6*syn->L,
+            6*syn->L, (double*)obj->d.tcp.fvec_acc );
+   }
    /* Add tcp to list. */
    syn_tcp_add( syn, obj );
    return 0;
@@ -1240,9 +1250,14 @@ int kin_obj_tcp_fk( kin_object_t *tcp, const dq_t *pos, int num )
    /* Only works on TCP. */
    assert( tcp->type == KIN_TYPE_TCP );
 
+   if (tcp->d.tcp.nP == 0)
+      tcp->d.tcp.nP = num;
+   else {
+      assert( tcp->d.tcp.nP == num );
+   }
+
    /* We must allocate the proper size and duplicate it when loading. */
    tcp->d.tcp.P         = memdup( (void*)pos, num * sizeof(dq_t) );
-   tcp->d.tcp.nP        = num;
    tcp->d.tcp.constant  = 1; /* Generally considered static. */
 
    /* We must do the calculations with the inversion of the reference.
@@ -1260,6 +1275,46 @@ int kin_obj_tcp_fk( kin_object_t *tcp, const dq_t *pos, int num )
          dq_op_sign( tcp->d.tcp.P[i], tcp->d.tcp.P[i] );
    }
 
+   return 0;
+}
+
+
+/**
+ * @brief Sets the velocity.
+ */
+int kin_obj_tcp_velocity( kin_object_t *tcp,
+      const plucker_t *vel, int num )
+{
+   /* Only works on TCP. */
+   assert( tcp->type == KIN_TYPE_TCP );
+
+   if (tcp->d.tcp.nP == 0)
+      tcp->d.tcp.nP = num;
+   else {
+      assert( tcp->d.tcp.nP == num );
+   }
+
+   tcp->d.tcp.V      = memdup( (void*)vel, num * sizeof(plucker_t) );
+   return 0;
+}
+
+
+/**
+ * @brief Sets the acceleration.
+ */
+int kin_obj_tcp_acceleration( kin_object_t *tcp,
+      const plucker_t *vel, int num )
+{
+   /* Only works on TCP. */
+   assert( tcp->type == KIN_TYPE_TCP );
+
+   if (tcp->d.tcp.nP == 0)
+      tcp->d.tcp.nP = num;
+   else {
+      assert( tcp->d.tcp.nP == num );
+   }
+
+   tcp->d.tcp.V      = memdup( (void*)vel, num * sizeof(plucker_t) );
    return 0;
 }
 
