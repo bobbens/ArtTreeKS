@@ -241,11 +241,12 @@ static int syn_branch_iter_walk( synthesis_t *syn,
 static void lie_joint_mac( plucker_t *dest,
       double val, const plucker_t *src )
 {
-   int i;
-   for (i=0; i<3; i++)
-      dest->s[i]  = val * src->s[i];
-   for (i=0; i<3; i++)
-      dest->s0[i] = val * src->s0[i];
+   dest->s[0]  = val * src->s[0];
+   dest->s[1]  = val * src->s[1];
+   dest->s[2]  = val * src->s[2];
+   dest->s0[0] = val * src->s0[0];
+   dest->s0[1] = val * src->s0[1];
+   dest->s0[2] = val * src->s0[2];
 }
 
 
@@ -295,6 +296,16 @@ static void plucker_from_dq( plucker_t *p, const dq_t Q )
 
 
 /**
+ * @brief Subtracts a plucker coordinate from another.
+ */
+static void plucker_sub( plucker_t *o, const plucker_t *p, const plucker_t *q )
+{
+   vec3_sub( o->s,  p->s,  q->s );
+   vec3_sub( o->s0, p->s0, q->s0 );
+}
+
+
+/**
  * @brief Calculates a branch.
  */
 int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
@@ -315,37 +326,45 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
       j->cond[1] = vec3_dot( j->S.s, j->S.s0 ); /* s.s0 = 0 */
    }
 
-   /* Calculate all the frame data. */
-   for (m=0; m<syn->L-1; m++) {
-      dq_cr_point( T, p ); /* Create identity dual quaternion. */
+   /* Calculate all the frame data.
+    * This is tricky because we have L-1 positions and L velocities/accelerations.
+    * So we handle them all at the same time, however we don't process the position
+    * 0 which corresponds to the reference system.
+    */
+   for (m=0; m<syn->L; m++) {
+      if (m != 0) {
+         dq_cr_point( T, p ); /* Create identity dual quaternion. */
 
-      /* Concatenate relative displacements around axes. */
-      for (i=0; i<branch->njoints; i++) {
-         dq_t S;
-         j = branch->joints[i];
+         /* Concatenate relative displacements around axes. */
+         for (i=0; i<branch->njoints; i++) {
+            dq_t S;
+            j = branch->joints[i];
 
-         /* Store current joint position. */
-         dq_cr_line_plucker( S, j->S.s, j->S.s0 );
-         dq_op_f2g( S, T, S );
-         plucker_from_dq( &j->S_cur, S );
+            /* Store current joint position. */
+            dq_cr_line_plucker( S, j->S.s, j->S.s0 );
+            dq_op_f2g( S, T, S );
+            plucker_from_dq( &j->S_cur, S );
 
-         /* Update propagation. */
-         dq_cr_rotation_plucker( R, j->pos.values[m], j->S.s, j->S.s0 );
-         dq_op_mul( T, T, R );
+            /* Update propagation. */
+            dq_cr_rotation_plucker( R, j->pos.values[m-1], j->S.s, j->S.s0 );
+            dq_op_mul( T, T, R );
+         }
+
+         /* Since dual quaternions double map SE(3) we make it so all the
+          * dual quaternions are using the same sign convention. */
+         if (T[3] < 0.)
+            dq_op_sign( T, T );
+
+         /* Store in fvec: T-P. */
+         dq_op_sub( branch->tcp->d.tcp.fvec_pos[m-1], T, branch->tcp->d.tcp.P[m] );
       }
-
-      /* Since dual quaternions double map SE(3) we make it so all the
-       * dual quaternions are using the same sign convention. */
-      if (T[3] < 0.)
-         dq_op_sign( T, T );
-
-      /* Store in fvec: T-P. */
-      dq_op_sub( branch->tcp->d.tcp.fvec_pos[m], T, branch->tcp->d.tcp.P[m+1] );
+      else
+         memcpy( &j->S_cur, &j->S, sizeof(plucker_t) );
 
       /* Update velocities. */
       if ((branch->tcp->d.tcp.fvec_vel != NULL) &&
             ((branch->tcp->d.tcp.vel_mask == NULL) ||
-               (branch->tcp->d.tcp.vel_mask[m] != 0))) {
+             (branch->tcp->d.tcp.vel_mask[m] != 0))) {
          /* Initialize result. */
          plucker_t v;
          plucker_zero( &v );
@@ -357,13 +376,13 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
             lie_joint_mac( &v, j->vel.values[m], &j->S_cur );
          }
          /* Copy result. */
-         memcpy( &branch->tcp->d.tcp.fvec_vel[m], &v, sizeof(plucker_t) );
+         plucker_sub( &branch->tcp->d.tcp.fvec_vel[m], &v, &branch->tcp->d.tcp.V[m] );
       }
 
       /* Update accelerations. */
       if ((branch->tcp->d.tcp.fvec_acc != NULL) &&
             ((branch->tcp->d.tcp.acc_mask == NULL) ||
-               (branch->tcp->d.tcp.acc_mask[m] != 0))) {
+             (branch->tcp->d.tcp.acc_mask[m] != 0))) {
          /* Initialize result. */
          plucker_t a;
          plucker_zero( &a );
@@ -391,7 +410,7 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
             lie_joint_mac( &a, j->vel.values[m], &acc );
          }
          /* Copy result. */
-         memcpy( &branch->tcp->d.tcp.fvec_acc[m], &a, sizeof(plucker_t) );
+         plucker_sub( &branch->tcp->d.tcp.fvec_acc[m], &a, &branch->tcp->d.tcp.A[m] );
       }
    }
 
