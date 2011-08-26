@@ -21,7 +21,6 @@ static int lua_reg_metatable( lua_State *L, const luaL_reg *reg, const char *nam
 static int lua_is_foo( lua_State *L, int ind, const char *foo );
 static int lua_table_to_vec( double v[3], lua_State *L, int ind );
 
-
 /*
  * Kinematic Joint API.
  */
@@ -37,19 +36,27 @@ static int jointL_gc( lua_State *L );
 static int jointL_new( lua_State *L );
 static int jointL_setPlucker( lua_State *L );
 static int jointL_setPositions( lua_State *L );
+static int jointL_setVelocities( lua_State *L );
+static int jointL_setAccelerations( lua_State *L );
 static int jointL_setConstS( lua_State *L );
 static int jointL_setConstPos( lua_State *L );
 static int jointL_setPluckerBounds( lua_State *L );
 static int jointL_setPositionBounds( lua_State *L );
+static int jointL_setVelocityBounds( lua_State *L );
+static int jointL_setAccelerationBounds( lua_State *L );
 static const luaL_reg jointL_methods[] = {
    { "__gc", jointL_gc },
    { "new", jointL_new },
    { "setPlucker", jointL_setPlucker },
    { "setPositions", jointL_setPositions },
+   { "setVelocities", jointL_setVelocities },
+   { "setAccelerations", jointL_setAccelerations },
    { "setConstS", jointL_setConstS },
    { "setConstPos", jointL_setConstPos },
    { "setPluckerBounds", jointL_setPluckerBounds },
    { "setPositionBounds", jointL_setPositionBounds },
+   { "setVelocityBounds", jointL_setVelocityBounds },
+   { "setAccelerationBounds", jointL_setAccelerationBounds },
    { 0, 0 }
 };
 
@@ -276,27 +283,64 @@ static int jointL_setPlucker( lua_State *L )
    kin_joint_setPlucker( kj, s, s0 );
    return 0;
 }
-static int jointL_setPositions( lua_State *L )
+static double* jointL_setParameter( lua_State *L, int *n )
 {
-   int i, n;
+   int i;
    double *v;
 
    /* Check parameter. */
-   kin_joint_t *kj = luaL_checkjoint(L,1);
    luaL_checktype(L, 2, LUA_TTABLE);
 
    /* Create and map vector. */
-   n = (int)lua_objlen(L,2);
+   *n = (int)lua_objlen(L,2);
    v = malloc( (size_t)n*sizeof(double) );
-   for (i=0; i<n; i++) {
+   for (i=0; i<*n; i++) {
       lua_pushnumber(L,i+1);
       lua_gettable(L,2);
       v[i] = lua_tonumber(L,-1);
       lua_pop(L,1);
    }
+   return v;
+}
+static int jointL_setPositions( lua_State *L )
+{
+   int n;
+   double *v;
+
+   /* Check parameter. */
+   kin_joint_t *kj = luaL_checkjoint(L,1);
+   v = jointL_setParameter( L, &n );
 
    /* Set data and clean up. */
    kin_joint_setPositions( kj, v, n );
+   free(v);
+   return 0;
+}
+static int jointL_setVelocities( lua_State *L )
+{
+   int n;
+   double *v;
+
+   /* Check parameter. */
+   kin_joint_t *kj = luaL_checkjoint(L,1);
+   v = jointL_setParameter( L, &n );
+
+   /* Set data and clean up. */
+   kin_joint_setVelocities( kj, v, n );
+   free(v);
+   return 0;
+}
+static int jointL_setAccelerations( lua_State *L )
+{
+   int n;
+   double *v;
+
+   /* Check parameter. */
+   kin_joint_t *kj = luaL_checkjoint(L,1);
+   v = jointL_setParameter( L, &n );
+
+   /* Set data and clean up. */
+   kin_joint_setAccelerations( kj, v, n );
    free(v);
    return 0;
 }
@@ -336,35 +380,72 @@ static int jointL_setPluckerBounds( lua_State *L )
 
    return 0;
 }
-static int jointL_setPositionBounds( lua_State *L )
+static void jointL_setBounds( lua_State *L, double **lb, double **ub, int *n )
 {
-   int i, n;
-   double *lb, *ub;
+   int i;
 
    /* Check parameters. */
-   kin_joint_t *kj = luaL_checkjoint(L,1);
    luaL_checktype(L, 2, LUA_TTABLE);
    luaL_checktype(L, 3, LUA_TTABLE);
 
    /* Allocate temporary memory. */
-   n = (int)lua_objlen(L,2);
-   lb = malloc( (size_t)n*sizeof(double) );
-   ub = malloc( (size_t)n*sizeof(double) );
+   *n = (int)lua_objlen(L,2);
+   *lb = malloc( (size_t)n*sizeof(double) );
+   *ub = malloc( (size_t)n*sizeof(double) );
 
    /* Construct vectors. */
-   for (i=0; i<n; i++) {
+   for (i=0; i<*n; i++) {
       lua_pushnumber(L,i+1);
       lua_gettable(L,2);
-      lb[i] = lua_tonumber(L,-1);
+      (*lb)[i] = lua_tonumber(L,-1);
       lua_pop(L,1);
       lua_pushnumber(L,i+1);
       lua_gettable(L,3);
-      ub[i] = lua_tonumber(L,-1);
+      (*ub)[i] = lua_tonumber(L,-1);
       lua_pop(L,1);
    }
+}
+static int jointL_setPositionBounds( lua_State *L )
+{
+   int n;
+   double *lb, *ub;
+
+   /* Check parameters. */
+   kin_joint_t *kj = luaL_checkjoint(L,1);
+   jointL_setBounds( L, &lb, &ub, &n );
 
    /* Set and clean up. */
    kin_joint_setPositionBounds( kj, lb, ub, n );
+   free(lb);
+   free(ub);
+   return 0;
+}
+static int jointL_setVelocityBounds( lua_State *L )
+{
+   int n;
+   double *lb, *ub;
+
+   /* Check parameters. */
+   kin_joint_t *kj = luaL_checkjoint(L,1);
+   jointL_setBounds( L, &lb, &ub, &n );
+
+   /* Set and clean up. */
+   kin_joint_setVelocityBounds( kj, lb, ub, n );
+   free(lb);
+   free(ub);
+   return 0;
+}
+static int jointL_setAccelerationBounds( lua_State *L )
+{
+   int n;
+   double *lb, *ub;
+
+   /* Check parameters. */
+   kin_joint_t *kj = luaL_checkjoint(L,1);
+   jointL_setBounds( L, &lb, &ub, &n );
+
+   /* Set and clean up. */
+   kin_joint_setAccelerationBounds( kj, lb, ub, n );
    free(lb);
    free(ub);
    return 0;
