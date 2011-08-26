@@ -45,7 +45,7 @@ function process_file( filename, filesave, datout )
    if not exists then
       dout:write( "i,best,generations,elapsed\n" )
    end
-   dout:write( string.format( "%d,%e,%d,%d", i, res.fit_best, res.generations, res.elapsed ) )
+   dout:write( string.format( "%d,%e,%d,%d\n", i, res.fit_best, res.generations, res.elapsed ) )
    dout:close()
 end
 
