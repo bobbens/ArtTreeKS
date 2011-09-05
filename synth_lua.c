@@ -76,11 +76,15 @@ static int objectL_gc( lua_State *L );
 static int objectL_new( lua_State *L );
 static int objectL_attach( lua_State *L );
 static int objectL_setFK( lua_State *L );
+static int objectL_setVel( lua_State *L );
+static int objectL_setAcc( lua_State *L );
 static const luaL_reg objectL_methods[] = {
    { "__gc", objectL_gc },
    { "new", objectL_new },
    { "attach", objectL_attach },
    { "setFK", objectL_setFK },
+   { "setVel", objectL_setVel },
+   { "setAcc", objectL_setAcc },
    { 0, 0 }
 };
 
@@ -583,6 +587,74 @@ static int objectL_setFK( lua_State *L )
    /* Add. */
    kin_obj_tcp_fk( obj, (const dq_t*) Q, n );
    free( Q );
+
+   return 0;
+}
+static int objectL_setDerivative( double **Q, int **mask, int *n, lua_State *L )
+{
+   int i, k;
+
+   /* Load as matrix. */
+   luaL_checktype(L,2,LUA_TTABLE);
+   (*n) = (int)lua_objlen(L,2);
+   (*Q) = calloc( (size_t)(*n), sizeof(plucker_t) );
+   (*mask) = calloc( (size_t)(*n), sizeof(int) );
+   /* Get all the matrix. */
+   for (k=0; k<(*n); k++) {
+      lua_pushnumber(L,k+1); /* t, i */
+      lua_gettable(L,2);     /* t, k */
+      if (lua_isnil( L, -1 )) {
+         /* No data. */
+         (*mask)[k] = 0;
+      }
+      else {
+         /* Get the data. */
+         for (i=0; i<6; i++) {
+            lua_pushnumber(L,i+1); /* t, i */
+            lua_gettable(L,-2);     /* t, k */
+            (*Q)[6*k+i] = lua_tonumber(L,-1); /* t, k */
+            lua_pop(L,1);           /* t */
+         }
+         (*mask)[k] = 1;
+      }
+      lua_pop(L,1);           /* t */
+   }
+
+   return 0;
+}
+static int objectL_setVel( lua_State *L )
+{
+   double *Q;
+   int n, *mask;
+   kin_object_t *obj = luaL_checkobject(L,1);
+   if (obj->type != KIN_TYPE_TCP) {
+      luaL_error(L, "Object must be of type 'tcp'.");
+      return 0;
+   }
+
+   objectL_setDerivative( &Q, &mask, &n, L );
+   kin_obj_tcp_velocity( obj, (const plucker_t*) Q, n );
+   kin_obj_tcp_velocityMask( obj, mask, n );
+   free( Q );
+   free( mask );
+
+   return 0;
+}
+static int objectL_setAcc( lua_State *L )
+{
+   double *Q;
+   int n, *mask;
+   kin_object_t *obj = luaL_checkobject(L,1);
+   if (obj->type != KIN_TYPE_TCP) {
+      luaL_error(L, "Object must be of type 'tcp'.");
+      return 0;
+   }
+
+   objectL_setDerivative( &Q, &mask, &n, L );
+   kin_obj_tcp_acceleration( obj, (const plucker_t*) Q, n );
+   kin_obj_tcp_accelerationMask( obj, mask, n );
+   free( Q );
+   free( mask );
 
    return 0;
 }
