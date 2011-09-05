@@ -12,7 +12,7 @@ LIB_OBJS += cmaes.o solver_cmaes.o
 
 CFLAGS  := -g -fPIC
 CFLAGS  += -W -Wall -Wextra -Wunused -Wshadow -Wpointer-arith -Wmissing-prototypes -Winline -Wcast-align -Wmissing-declarations -Wredundant-decls -Wno-long-long -Wcast-align
-CFLAGS  += -DNDEBUG
+#CFLAGS  += -DNDEBUG
 CFLAGS  += $(shell pkg-config lua5.1 --cflags)
 CFLAGS  += $(shell pkg-config sdl --cflags)
 LDFLAGS += $(shell pkg-config libpng --cflags)
