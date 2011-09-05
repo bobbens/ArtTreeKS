@@ -404,7 +404,7 @@ static void jointL_setBounds( lua_State *L, double **lb, double **ub, int *n )
    (*ub) = malloc( (size_t)(*n)*sizeof(double) );
 
    /* Construct vectors. */
-   for (i=0; i<*n; i++) {
+   for (i=0; i<(*n); i++) {
       lua_pushnumber(L,i+1);
       lua_gettable(L,2);
       (*lb)[i] = lua_tonumber(L,-1);
