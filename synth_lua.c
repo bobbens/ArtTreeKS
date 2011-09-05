@@ -294,10 +294,13 @@ static double* jointL_setParameter( lua_State *L, int *n )
 
    /* Check parameter. */
    luaL_checktype(L, 2, LUA_TTABLE);
+   if (lua_isnumber(L,3))
+      (*n) = lua_tonumber(L,3);
+   else
+      (*n) = (int)lua_objlen(L,2);
 
    /* Create and map vector. */
-   *n = (int)lua_objlen(L,2);
-   v = malloc( (size_t)n*sizeof(double) );
+   v = malloc( (size_t)(*n)*sizeof(double) );
    for (i=0; i<*n; i++) {
       lua_pushnumber(L,i+1);
       lua_gettable(L,2);
@@ -393,9 +396,12 @@ static void jointL_setBounds( lua_State *L, double **lb, double **ub, int *n )
    luaL_checktype(L, 3, LUA_TTABLE);
 
    /* Allocate temporary memory. */
-   *n = (int)lua_objlen(L,2);
-   *lb = malloc( (size_t)n*sizeof(double) );
-   *ub = malloc( (size_t)n*sizeof(double) );
+   if (lua_isnumber(L,4))
+      (*n) = lua_tonumber(L,4);
+   else
+      (*n) = (int)lua_objlen(L,2);
+   (*lb) = malloc( (size_t)(*n)*sizeof(double) );
+   (*ub) = malloc( (size_t)(*n)*sizeof(double) );
 
    /* Construct vectors. */
    for (i=0; i<*n; i++) {
@@ -596,7 +602,10 @@ static int objectL_setDerivative( double **Q, int **mask, int *n, lua_State *L )
 
    /* Load as matrix. */
    luaL_checktype(L,2,LUA_TTABLE);
-   (*n) = (int)lua_objlen(L,2);
+   if (lua_isnumber(L,3))
+      (*n) = lua_tonumber(L,3);
+   else
+      (*n) = (int)lua_objlen(L,2);
    (*Q) = calloc( (size_t)(*n), sizeof(plucker_t) );
    (*mask) = calloc( (size_t)(*n), sizeof(int) );
    /* Get all the matrix. */

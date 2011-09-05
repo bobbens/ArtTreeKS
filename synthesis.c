@@ -573,7 +573,7 @@ static int kin_joint_data_claim( synthesis_t *syn, kin_joint_data_t *data )
 {
    assert( data->claim == NULL );
    if (data->values != NULL) {
-      assert( data->nvalues == syn->L-1 );
+      //assert( data->nvalues == syn->L-1 );
       data->claim = syn_claim_x( syn, data->nvalues, data->nvalues,
             data->values, data->values_lb, data->values_ub );
    }
@@ -684,7 +684,7 @@ void kin_joint_setVelocities( kin_joint_t *joint, double *v, int len )
  */
 void kin_joint_setAccelerations( kin_joint_t *joint, double *a, int len )
 {
-   kin_joint_data_set( &joint->vel, a, len, -M_PI, M_PI );
+   kin_joint_data_set( &joint->acc, a, len, -M_PI, M_PI );
 }
 
 
@@ -758,7 +758,7 @@ static void kin_joint_data_setBounds( kin_joint_data_t *data,
    for (i=0; i<len; i++)
       assert( lb[i] <= ub[i] );
 #endif /* NDEBUG */
-   assert (len == data->nvalues );
+   assert( len == data->nvalues );
 
    /* Copy values over. */
    memcpy( data->values_lb, lb, len * sizeof(double) );
@@ -939,9 +939,12 @@ static int kin_obj_tcp_dup( const kin_object_t *obj, kin_object_t *newobj )
    memset( &newobj->d.tcp, 0, sizeof(kin_tcp_data_t) );
    if (obj->d.tcp.P != NULL) {
       newobj->d.tcp.nP = obj->d.tcp.nP;
-      newobj->d.tcp.P = memmalloc( obj->d.tcp.nP*sizeof(dq_t) );
-      memcpy( newobj->d.tcp.P, obj->d.tcp.P, obj->d.tcp.nP*sizeof(dq_t) );
+      newobj->d.tcp.P = memdup( obj->d.tcp.P, obj->d.tcp.nP*sizeof(dq_t) );
    }
+   if (obj->d.tcp.V != NULL)
+      newobj->d.tcp.V = memdup( obj->d.tcp.V, obj->d.tcp.nP*sizeof(plucker_t) );
+   if (obj->d.tcp.A != NULL)
+      newobj->d.tcp.A = memdup( obj->d.tcp.A, obj->d.tcp.nP*sizeof(plucker_t) );
    return 0;
 }
 /**
@@ -961,12 +964,12 @@ static int kin_obj_tcp_fin( kin_object_t *obj, synthesis_t *syn )
    obj->d.tcp.claim_pos    = syn_claim_fvec( syn, 8*(syn->L-1),
          6*(syn->L-1), (double*)obj->d.tcp.fvec_pos );
    if (obj->d.tcp.V != NULL) {
-      obj->d.tcp.fvec_vel  = memcalloc( syn->L, sizeof(dq_t) );
+      obj->d.tcp.fvec_vel  = memcalloc( syn->L, sizeof(plucker_t) );
       obj->d.tcp.claim_vel = syn_claim_fvec( syn, 6*syn->L,
             6*syn->L, (double*)obj->d.tcp.fvec_vel );
    }
    if (obj->d.tcp.A != NULL) {
-      obj->d.tcp.fvec_acc  = memcalloc( syn->L, sizeof(dq_t) );
+      obj->d.tcp.fvec_acc  = memcalloc( syn->L, sizeof(plucker_t) );
       obj->d.tcp.claim_acc = syn_claim_fvec( syn, 6*syn->L,
             6*syn->L, (double*)obj->d.tcp.fvec_acc );
    }
@@ -1326,9 +1329,8 @@ int kin_obj_tcp_velocity( kin_object_t *tcp,
 
    if (tcp->d.tcp.nP == 0)
       tcp->d.tcp.nP = num;
-   else {
+   else
       assert( tcp->d.tcp.nP == num );
-   }
 
    assert( tcp->d.tcp.V == NULL );
    tcp->d.tcp.V      = memdup( (void*)vel, num * sizeof(plucker_t) );
@@ -1347,9 +1349,8 @@ int kin_obj_tcp_acceleration( kin_object_t *tcp,
 
    if (tcp->d.tcp.nP == 0)
       tcp->d.tcp.nP = num;
-   else {
+   else
       assert( tcp->d.tcp.nP == num );
-   }
 
    assert( tcp->d.tcp.A == NULL );
    tcp->d.tcp.A      = memdup( (void*)vel, num * sizeof(plucker_t) );
