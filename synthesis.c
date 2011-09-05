@@ -124,10 +124,10 @@ static int syn_construct_branches_walk( synthesis_t *syn, kin_branch_iter_t *bra
          (b->tcp->d.tcp.claim_vel == NULL))
       assert( "Velocity data can't be NULL if acceleration data is not NULL." );
    for (k=0; k < b->tcp->d.tcp.nP; k++) {
-      if (((b->tcp->d.tcp.acc_mask == NULL) ||
-               (b->tcp->d.tcp.acc_mask[k] != 0)) &&
-            ((b->tcp->d.tcp.vel_mask != NULL) &&
-               (b->tcp->d.tcp.vel_mask[k] == 0))) {
+      if (((b->tcp->d.tcp.A.mask_mask == NULL) ||
+               (b->tcp->d.tcp.A.mask_mask[k] != 0)) &&
+            ((b->tcp->d.tcp.V.mask_mask != NULL) &&
+               (b->tcp->d.tcp.V.mask_mask[k] == 0))) {
          assert( "Velocity mask must be a superset of acceleration mask." );
       }
    }
@@ -362,11 +362,12 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
          memcpy( &j->S_cur, &j->S, sizeof(plucker_t) );
 
       /* Update velocities. */
-      if ((branch->tcp->d.tcp.fvec_vel != NULL) &&
-            ((branch->tcp->d.tcp.vel_mask == NULL) ||
-             (branch->tcp->d.tcp.vel_mask[m] != 0))) {
+      if ((branch->tcp->d.tcp.fvec_vel.chunk != 0) &&
+            ((branch->tcp->d.tcp.V.mask_mask == NULL) ||
+             (branch->tcp->d.tcp.V.mask_mask[m] != 0))) {
          /* Initialize result. */
          plucker_t v;
+		   plucker_t *d, *V;
          plucker_zero( &v );
          /* Straight forward:
           *    v = \sum v_i S_i
@@ -376,15 +377,18 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
             lie_joint_mac( &v, j->vel.values[m], &j->S_cur );
          }
          /* Copy result. */
-         plucker_sub( &branch->tcp->d.tcp.fvec_vel[m], &v, &branch->tcp->d.tcp.V[m] );
+			d = (plucker_t*) branch->tcp->d.tcp.fvec_vel.mask_vec;
+			V = (plucker_t*) branch->tcp->d.tcp.V.mask_vec;
+         plucker_sub( &d[m], &v, &V[m] );
       }
 
       /* Update accelerations. */
-      if ((branch->tcp->d.tcp.fvec_acc != NULL) &&
-            ((branch->tcp->d.tcp.acc_mask == NULL) ||
-             (branch->tcp->d.tcp.acc_mask[m] != 0))) {
+      if ((branch->tcp->d.tcp.fvec_acc.chunk != 0) &&
+            ((branch->tcp->d.tcp.A.mask_mask == NULL) ||
+             (branch->tcp->d.tcp.A.mask_mask[m] != 0))) {
          /* Initialize result. */
          plucker_t a;
+		   plucker_t *d, *A;
          plucker_zero( &a );
          /* Straight forward sum part:
           *    a_1 = \sum a_i S_i
@@ -410,7 +414,9 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
             lie_joint_mac( &a, j->vel.values[m], &acc );
          }
          /* Copy result. */
-         plucker_sub( &branch->tcp->d.tcp.fvec_acc[m], &a, &branch->tcp->d.tcp.A[m] );
+			d = (plucker_t*) branch->tcp->d.tcp.fvec_acc.mask_vec;
+			A = (plucker_t*) branch->tcp->d.tcp.A.mask_vec;
+         plucker_sub( &d[m], &a, &A[m] );
       }
    }
 
@@ -921,11 +927,11 @@ static int kin_obj_chain_save( const kin_object_t *obj, FILE *stream, const char
 static int kin_obj_tcp_free( kin_object_t *obj )
 {
    free( obj->d.tcp.P );
-   free( obj->d.tcp.V );
-   free( obj->d.tcp.A );
+	mm_cleanup( &obj->d.tcp.V );
+	mm_cleanup( &obj->d.tcp.A );
    free( obj->d.tcp.fvec_pos );
-   free( obj->d.tcp.fvec_vel );
-   free( obj->d.tcp.fvec_acc );
+   mm_cleanup( &obj->d.tcp.fvec_vel );
+   mm_cleanup( &obj->d.tcp.fvec_acc );
    return 0;
 }
 /**
@@ -941,10 +947,10 @@ static int kin_obj_tcp_dup( const kin_object_t *obj, kin_object_t *newobj )
       newobj->d.tcp.nP = obj->d.tcp.nP;
       newobj->d.tcp.P = memdup( obj->d.tcp.P, obj->d.tcp.nP*sizeof(dq_t) );
    }
-   if (obj->d.tcp.V != NULL)
-      newobj->d.tcp.V = memdup( obj->d.tcp.V, obj->d.tcp.nP*sizeof(plucker_t) );
-   if (obj->d.tcp.A != NULL)
-      newobj->d.tcp.A = memdup( obj->d.tcp.A, obj->d.tcp.nP*sizeof(plucker_t) );
+   if (obj->d.tcp.V.chunk != 0)
+		mm_initDup( &newobj->d.tcp.V, &obj->d.tcp.V );
+   if (obj->d.tcp.A.chunk != 0)
+		mm_initDup( &newobj->d.tcp.A, &obj->d.tcp.A );
    return 0;
 }
 /**
@@ -954,6 +960,8 @@ static int kin_obj_tcp_dup( const kin_object_t *obj, kin_object_t *newobj )
  */
 static int kin_obj_tcp_fin( kin_object_t *obj, synthesis_t *syn )
 {
+	double *d;
+
    /* Claims. */
    assert( obj->d.tcp.fvec_pos == NULL );
    assert( obj->d.tcp.claim_pos == NULL );
@@ -963,16 +971,20 @@ static int kin_obj_tcp_fin( kin_object_t *obj, synthesis_t *syn )
    obj->d.tcp.fvec_pos     = memcalloc( (syn->L-1), sizeof(dq_t) );
    obj->d.tcp.claim_pos    = syn_claim_fvec( syn, 8*(syn->L-1),
          6*(syn->L-1), (double*)obj->d.tcp.fvec_pos );
-   if (obj->d.tcp.V != NULL) {
-      obj->d.tcp.fvec_vel  = memcalloc( syn->L, sizeof(plucker_t) );
-      obj->d.tcp.claim_vel = syn_claim_fvec( syn, 6*syn->L,
-            6*syn->L, (double*)obj->d.tcp.fvec_vel );
+	d = memcalloc( syn->L, sizeof(plucker_t) );
+   if (obj->d.tcp.V.chunk != 0) {
+		mm_initMask( &obj->d.tcp.fvec_vel, sizeof(plucker_t),
+				obj->d.tcp.V.mask_len, d, obj->d.tcp.V.mask_mask );
+      obj->d.tcp.claim_vel = syn_claim_fvec( syn, 6*obj->d.tcp.V.map_len,
+            6*obj->d.tcp.V.map_len, (double*)obj->d.tcp.fvec_vel.map_vec );
    }
-   if (obj->d.tcp.A != NULL) {
-      obj->d.tcp.fvec_acc  = memcalloc( syn->L, sizeof(plucker_t) );
-      obj->d.tcp.claim_acc = syn_claim_fvec( syn, 6*syn->L,
-            6*syn->L, (double*)obj->d.tcp.fvec_acc );
+   if (obj->d.tcp.A.chunk != 0) {
+		mm_initMask( &obj->d.tcp.fvec_acc, sizeof(plucker_t),
+				obj->d.tcp.A.mask_len, d, obj->d.tcp.A.mask_mask );
+      obj->d.tcp.claim_acc = syn_claim_fvec( syn, 6*obj->d.tcp.A.map_len,
+            6*obj->d.tcp.A.map_len, (double*)obj->d.tcp.fvec_acc.map_vec );
    }
+	free(d);
    /* Add tcp to list. */
    syn_tcp_add( syn, obj );
    return 0;
@@ -1322,7 +1334,7 @@ int kin_obj_tcp_fk( kin_object_t *tcp, const dq_t *pos, int num )
  * @brief Sets the velocity.
  */
 int kin_obj_tcp_velocity( kin_object_t *tcp,
-      const plucker_t *vel, int num )
+      const plucker_t *vel, const int *mask, int num )
 {
    /* Only works on TCP. */
    assert( tcp->type == KIN_TYPE_TCP );
@@ -1332,8 +1344,8 @@ int kin_obj_tcp_velocity( kin_object_t *tcp,
    else
       assert( tcp->d.tcp.nP == num );
 
-   assert( tcp->d.tcp.V == NULL );
-   tcp->d.tcp.V      = memdup( (void*)vel, num * sizeof(plucker_t) );
+   assert( tcp->d.tcp.V.chunk == 0 );
+	mm_initMask( &tcp->d.tcp.V, sizeof(plucker_t), num, (void*)vel, mask );
    return 0;
 }
 
@@ -1342,7 +1354,7 @@ int kin_obj_tcp_velocity( kin_object_t *tcp,
  * @brief Sets the acceleration.
  */
 int kin_obj_tcp_acceleration( kin_object_t *tcp,
-      const plucker_t *vel, int num )
+      const plucker_t *acc, const int *mask, int num )
 {
    /* Only works on TCP. */
    assert( tcp->type == KIN_TYPE_TCP );
@@ -1352,48 +1364,8 @@ int kin_obj_tcp_acceleration( kin_object_t *tcp,
    else
       assert( tcp->d.tcp.nP == num );
 
-   assert( tcp->d.tcp.A == NULL );
-   tcp->d.tcp.A      = memdup( (void*)vel, num * sizeof(plucker_t) );
-   return 0;
-}
-
-
-/**
- * @brief Sets the velocity mask.
- */
-int kin_obj_tcp_velocityMask( kin_object_t *tcp, const int *mask, int num )
-{
-   /* Only works on TCP. */
-   assert( tcp->type == KIN_TYPE_TCP );
-
-   if (tcp->d.tcp.nP == 0)
-      tcp->d.tcp.nP = num;
-   else {
-      assert( tcp->d.tcp.nP == num );
-   }
-
-   assert( tcp->d.tcp.vel_mask == NULL );
-   tcp->d.tcp.vel_mask = memdup( mask, num * sizeof(int) );
-   return 0;
-}
-
-
-/**
- * @brief Sets the acceleration mask.
- */
-int kin_obj_tcp_accelerationMask( kin_object_t *tcp, const int *mask, int num )
-{
-   /* Only works on TCP. */
-   assert( tcp->type == KIN_TYPE_TCP );
-
-   if (tcp->d.tcp.nP == 0)
-      tcp->d.tcp.nP = num;
-   else {
-      assert( tcp->d.tcp.nP == num );
-   }
-
-   assert( tcp->d.tcp.acc_mask == NULL );
-   tcp->d.tcp.acc_mask = memdup( mask, num * sizeof(int) );
+   assert( tcp->d.tcp.A.chunk == 0 );
+	mm_initMask( &tcp->d.tcp.A, sizeof(plucker_t), num, (void*)acc, mask );
    return 0;
 }
 

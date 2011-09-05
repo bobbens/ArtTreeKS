@@ -29,8 +29,9 @@ typedef struct mmvec_s {
 } mm_vec_t;
 
 
-int mm_initMap( mm_vec_t *mm, size_t chunk, int map_len, void *map_vec, int *map_map, int mask_len );
-int mm_initMask( mm_vec_t *mm, size_t chunk, int mask_len, void *mask_vec, int *mask_mask );
+int mm_initMap( mm_vec_t *mm, size_t chunk, int map_len, void *map_vec, const int *map_map, int mask_len );
+int mm_initMask( mm_vec_t *mm, size_t chunk, int mask_len, void *mask_vec, const int *mask_mask );
+int mm_initDup( mm_vec_t *mm, const mm_vec_t *in );
 
 void mm_cleanup( mm_vec_t *mm );
 

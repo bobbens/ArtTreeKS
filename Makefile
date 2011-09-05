@@ -7,11 +7,11 @@ NLOPT		:= yes
 
 
 LIB		:= synthesis.so
-LIB_OBJS := synthesis.o synth_lua.o solver_minpack.o solver_ga.o visualizer.o sminpack.o
+LIB_OBJS := synthesis.o synth_lua.o solver_minpack.o solver_ga.o visualizer.o sminpack.o mapmask.o
 LIB_OBJS += cmaes.o solver_cmaes.o
 
 CFLAGS  := -g -fPIC
-CFLAGS  += -W -Wall -Wextra -Wunused -Wshadow -Wpointer-arith -Wmissing-prototypes -Winline -Wcast-align -Wmissing-declarations -Wredundant-decls -Wno-long-long -Wcast-align
+CFLAGS  += -W -Wall -Wextra -Wunused -Wshadow -Wmissing-prototypes -Winline -Wcast-align -Wmissing-declarations -Wredundant-decls -Wno-long-long -Wcast-align
 #CFLAGS  += -DNDEBUG
 CFLAGS  += $(shell pkg-config lua5.1 --cflags)
 CFLAGS  += $(shell pkg-config sdl --cflags)

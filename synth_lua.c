@@ -642,8 +642,7 @@ static int objectL_setVel( lua_State *L )
    }
 
    objectL_setDerivative( &Q, &mask, &n, L );
-   kin_obj_tcp_velocity( obj, (const plucker_t*) Q, n );
-   kin_obj_tcp_velocityMask( obj, mask, n );
+   kin_obj_tcp_velocity( obj, (const plucker_t*) Q, mask, n );
    free( Q );
    free( mask );
 
@@ -660,8 +659,7 @@ static int objectL_setAcc( lua_State *L )
    }
 
    objectL_setDerivative( &Q, &mask, &n, L );
-   kin_obj_tcp_acceleration( obj, (const plucker_t*) Q, n );
-   kin_obj_tcp_accelerationMask( obj, mask, n );
+   kin_obj_tcp_acceleration( obj, (const plucker_t*) Q, mask, n );
    free( Q );
    free( mask );
 

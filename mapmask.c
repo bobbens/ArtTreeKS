@@ -17,7 +17,7 @@ static void* memdup( const void *base, size_t size )
 }
 
 
-int mm_initMap( mm_vec_t *mm, size_t chunk, int map_len, void *map_vec, int *map_map, int mask_len )
+int mm_initMap( mm_vec_t *mm, size_t chunk, int map_len, void *map_vec, const int *map_map, int mask_len )
 {
    int i;
    /* Duplicate the new data. */
@@ -36,14 +36,14 @@ int mm_initMap( mm_vec_t *mm, size_t chunk, int map_len, void *map_vec, int *map
    return 0;
 }
 
-int mm_initMask( mm_vec_t *mm, size_t chunk, int mask_len, void *mask_vec, int *mask_mask )
+int mm_initMask( mm_vec_t *mm, size_t chunk, int mask_len, void *mask_vec, const int *mask_mask )
 {
    int i;
    /* Duplicate new data. */
    mm->chunk    = chunk;
    mm->mask_len = mask_len;
-   mm->mask_vec = mask_vec;
-   mm->mask_mask = mask_mask;
+   mm->mask_vec = memdup( mask_vec, mm->mask_len * mm->chunk );
+   mm->mask_mask = memdup( mask_mask, mm->mask_len * sizeof(int) );
    /* Create the map. */
    mm->map_len = 0;
    for (i=0; i<mm->mask_len; i++)
@@ -53,6 +53,18 @@ int mm_initMask( mm_vec_t *mm, size_t chunk, int mask_len, void *mask_vec, int *
    mm->map_map = calloc( mm->map_len, sizeof(int) );
    /* Synchronize data. */
    mm_updateMap( mm );
+   return 0;
+}
+
+int mm_initDup( mm_vec_t *mm, const mm_vec_t *in )
+{
+	mm->chunk = in->chunk;
+	mm->mask_len = in->mask_len;
+	mm->mask_vec = memdup( in->mask_vec, in->chunk * in->mask_len );
+	mm->mask_mask = memdup( in->mask_mask, in->chunk * sizeof(int) );
+	mm->map_len = in->map_len;
+	mm->map_vec = memdup( in->map_vec, in->chunk * in->map_len );
+	mm->map_map = memdup( in->map_map, in->chunk * sizeof(int) );
    return 0;
 }
 
