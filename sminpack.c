@@ -6,6 +6,10 @@
 
 /**
  * @brief Does minpack without having to fuss about the work buffers.
+ *
+ * What we do here is automatically allocate a single large buffer which we
+ * chop up into smaller ones to reduce the number of memory management calls
+ * for running minpack.
  */
 int sminpack( minpack_func_mn fcn, void *p,
       int m, int n, double *x, double *fvec,
