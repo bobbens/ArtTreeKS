@@ -304,7 +304,7 @@ static void ga_ent_evaluate( ga_entity_t *ent, const ga_options_t *opts )
 
    v = opts->verbose;
 
-   /* calculate the synthesis. */
+   /* Calculate the synthesis. */
    syn_calc( ent->syn );
 
    /* Calculate the sum of fitness. */
@@ -313,6 +313,7 @@ static void ga_ent_evaluate( ga_entity_t *ent, const ga_options_t *opts )
       fit += fabs( ent->syn->fvec[i] );
    ent->fitness = 1./fit;
 
+   /* Debugging. */
    if (v>9) {
       LOG( v>9, "-Evaluated entity-%03d----------\n", ent->id );
       syn_printDetail( ent->syn );
@@ -370,6 +371,7 @@ static void ga_ent_seed( ga_entity_t *ent, const synthesis_t *syn, const ga_opti
                vec3_dot( kj->S.s, kj->S.s0 ) );
       }
       if (kj->pos.claim != NULL) {
+         mm_updateMask( &kj->pos.values );
          for (j=0; j<kj->pos.nvalues; j++) {
             LOG( v>2&&v<=9, "      pos[%d] = %.3e\n", j, ((double*)kj->pos.values.mask_vec)[j] );
          }
@@ -417,6 +419,7 @@ static void ga_ent_mutate( ga_entity_t *ent, const synthesis_t *parent, const ga
             lb    = ((double*)parent->joints[rj]->pos.values_lb.mask_vec)[ra];
             ub    = ((double*)parent->joints[rj]->pos.values_ub.mask_vec)[ra];
             ((double*)ent->syn->joints[rj]->pos.values.mask_vec)[ra] = rand_double_range( lb, ub );
+            mm_updateMap( &ent->syn->joints[rj]->pos.values );
          }
       }
    }

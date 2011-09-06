@@ -2343,7 +2343,8 @@ void syn_printfDetail( FILE* stream, const synthesis_t *syn )
          fprintf( stream, "      %d:  [ %.3e, %.3e, %.3e ] x [ %.3e, %.3e, %.3e ] (%.3e)\n", j,
                t[0], t[1], t[2], t0[0], t0[1], t0[2],
                vec3_dot( t, t0 ) );
-         for (k=0; k<kj->pos.nvalues; k++)
+         mm_updateMask( &kj->pos.values );
+         for (k=0; k<kj->pos.values.mask_len; k++)
             fprintf( stream, "          [%d] %.3e\n", k, ((double*)kj->pos.values.mask_vec)[k] );
       }
    }

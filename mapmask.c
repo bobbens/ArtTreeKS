@@ -4,6 +4,7 @@
 
 #include <string.h>
 #include <malloc.h>
+#include <stdlib.h>
 
 
 static void* memdup( const void *base, size_t size )
