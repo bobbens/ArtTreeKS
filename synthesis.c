@@ -342,14 +342,10 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
       j->cond[1] = vec3_dot( j->S.s, j->S.s0 ); /* s.s0 = 0 */
 
       /* Need to map data from memory to vector. */
+      mm_updateMask( &j->pos.values );
       mm_updateMask( &j->vel.values );
       mm_updateMask( &j->acc.values );
    }
-
-   /* Convert from internal map layout to mask layout.
-    * TODO this can probably be elsewhere. */
-   mm_updateMask( &branch->tcp->d.tcp.V );
-   mm_updateMask( &branch->tcp->d.tcp.A );
 
    /* Calculate all the frame data.
     * This is tricky because we have L-1 positions and L velocities/accelerations.
