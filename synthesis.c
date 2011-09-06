@@ -634,6 +634,9 @@ int kin_joint_claim( synthesis_t *syn, kin_joint_t *joint )
    assert( joint->claim_cond == NULL );
    assert( joint->claim_const == NULL );
    assert( syn->L > 0 );
+   assert( joint->pos.values.map_len == syn->L-1 );
+   assert( joint->vel.values.map_len <= joint->pos.values.map_len );
+   assert( joint->acc.values.map_len <= joint->vel.values.map_len );
 
    /* Claim the data. */
    kin_joint_data_claim( syn, &joint->pos, "Joint Pos" );
