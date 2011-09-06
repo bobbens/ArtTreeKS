@@ -345,6 +345,9 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
       mm_updateMask( &j->pos.values );
       mm_updateMask( &j->vel.values );
       mm_updateMask( &j->acc.values );
+
+      /* Initialize joint position to initial position. */
+      memcpy( &j->S_cur, &j->S, sizeof(plucker_t) );
    }
 
    /* Calculate all the frame data.
@@ -380,12 +383,6 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
 
          /* Store in fvec: T-P. */
          dq_op_sub( branch->tcp->d.tcp.fvec_pos[m-1], T, branch->tcp->d.tcp.P[m] );
-      }
-      else {
-         for (i=0; i<branch->njoints; i++) {
-            j = branch->joints[i];
-            memcpy( &j->S_cur, &j->S, sizeof(plucker_t) );
-         }
       }
 
       /* Update velocities. */
