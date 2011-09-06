@@ -27,7 +27,7 @@ static int syn_branch_iter_walk( synthesis_t *syn,
 /* Joints. */
 static void kin_joint_data_free( kin_joint_data_t *data );
 static void kin_joint_data_dup( kin_joint_data_t *dest, const kin_joint_data_t *src );
-static int kin_joint_data_claim( synthesis_t *syn, kin_joint_data_t *data );
+static int kin_joint_data_claim( synthesis_t *syn, kin_joint_data_t *data, const char *name );
 /* Saving. */
 static int kin_obj_save( const kin_object_t *obj, FILE *stream, int depth, const char *sym );
 /* Finalization. */
@@ -36,11 +36,14 @@ static int syn_joint_add( synthesis_t *parent, kin_joint_t *joint );
 static int syn_tcp_add( synthesis_t *parent, kin_object_t *tcp );
 /* Claims. */
 static kin_claim_t* syn_claim_add( kin_claim_t *claim,
-      size_t len, size_t indep, double *v, double *lb, double *ub );
+      size_t len, size_t indep, double *v, double *lb, double *ub, const char *name );
 static void syn_claim_destroy( kin_claim_t *claim );
-static int syn_map_claim_to_vec( const kin_claim_t *par, int *n, int *ni, double *v, double *lb, double *ub );
-static kin_claim_t* syn_claim_x( synthesis_t *syn, size_t len, size_t indep, double *v, double *lb, double *ub );
-static kin_claim_t* syn_claim_fvec(  synthesis_t *parent, size_t len, size_t indep, double *v );
+static int syn_map_claim_to_vec( const kin_claim_t *par, int *n, int *ni,
+      double *v, double *lb, double *ub );
+static kin_claim_t* syn_claim_x( synthesis_t *syn, size_t len, size_t indep,
+      double *v, double *lb, double *ub, const char *name );
+static kin_claim_t* syn_claim_fvec( synthesis_t *parent, size_t len, size_t indep,
+      double *v, const char *name );
 static int syn_set_bounds( synthesis_t *syn );
 /* Function voodoo. */
 static int kin_obj_chain_free( kin_object_t *obj );
@@ -307,6 +310,19 @@ static void plucker_sub( plucker_t *o, const plucker_t *p, const plucker_t *q )
 
 /**
  * @brief Calculates a branch.
+ *
+ * The tree should be already updated from the possible data vectors if being used in the solver.
+ *
+ * What we have to do is:
+ *
+ * *0) Convert variable vector to function vector.
+ *  1) Set up mask data from mapped data (which should be read directly from claims).
+ *  2) Update position function vector and screw axis current location.
+ *  3) Update derivative function vector from new screw axis locations.
+ *  4) Convert masked function vector to mapped data.
+ *  5) Convert tree structure to function vector.
+ *
+ * * indicates this is not done in this function.
  */
 int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
 {
@@ -319,7 +335,7 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
    assert( syn->branches != NULL );
    assert( branch->joints != NULL );
 
-   /* Calculate plucker conditions for all the joints. */
+   /* Calculate plucker conditions for all the joints, we explicitly use them as equations. */
    for (i=0; i<branch->njoints; i++) {
       j          = branch->joints[i];
       j->cond[0] = (vec3_norm( j->S.s ) - 1.); /* ||s|| = 1 */
@@ -376,7 +392,7 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
       if ((branch->tcp->d.tcp.claim_vel != NULL) &&
             ((branch->tcp->d.tcp.V.mask_mask == NULL) ||
              ((branch->tcp->d.tcp.V.mask_len > m) &&
-               (branch->tcp->d.tcp.V.mask_mask[m] != 0)))) {
+              (branch->tcp->d.tcp.V.mask_mask[m] != 0)))) {
          /* Initialize result. */
          plucker_t v;
 		   plucker_t *d, *V;
@@ -400,7 +416,7 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
       if ((branch->tcp->d.tcp.claim_acc != NULL) &&
             ((branch->tcp->d.tcp.A.mask_mask == NULL) ||
              ((branch->tcp->d.tcp.A.mask_len > m) &&
-                (branch->tcp->d.tcp.A.mask_mask[m] != 0)))) {
+              (branch->tcp->d.tcp.A.mask_mask[m] != 0)))) {
          /* Initialize result. */
          plucker_t a;
 		   plucker_t *d, *A;
@@ -582,7 +598,7 @@ void kin_joint_dupInit( kin_joint_t *nj, const kin_joint_t *oj )
    memcpy( &nj->S_lb, &oj->S_lb, sizeof(plucker_t) );
    memcpy( &nj->S_ub, &oj->S_ub, sizeof(plucker_t) );
 
-   /* Duplicate position memory. */
+   /* Duplicate position and derivative memory. */
    kin_joint_data_dup( &nj->pos, &oj->pos );
    kin_joint_data_dup( &nj->vel, &oj->vel );
    kin_joint_data_dup( &nj->acc, &oj->acc );
@@ -595,7 +611,7 @@ void kin_joint_dupInit( kin_joint_t *nj, const kin_joint_t *oj )
 /**
  * @brief Claims joint data.
  */
-static int kin_joint_data_claim( synthesis_t *syn, kin_joint_data_t *data )
+static int kin_joint_data_claim( synthesis_t *syn, kin_joint_data_t *data, const char *name )
 {
    assert( data->claim == NULL );
    if (data->values.chunk != 0) {
@@ -603,7 +619,7 @@ static int kin_joint_data_claim( synthesis_t *syn, kin_joint_data_t *data )
       data->claim = syn_claim_x( syn, data->values.map_len, data->values.map_len,
             (double*) data->values.map_vec,
             (double*) data->values_lb.map_vec,
-            (double*) data->values_ub.map_vec );
+            (double*) data->values_ub.map_vec, name );
    }
    return 0;
 }
@@ -623,16 +639,19 @@ int kin_joint_claim( synthesis_t *syn, kin_joint_t *joint )
    assert( syn->L > 0 );
 
    /* Claim the data. */
-   kin_joint_data_claim( syn, &joint->pos );
-   kin_joint_data_claim( syn, &joint->vel );
-   kin_joint_data_claim( syn, &joint->acc );
+   kin_joint_data_claim( syn, &joint->pos, "Joint Pos" );
+   kin_joint_data_claim( syn, &joint->vel, "Joint Vel" );
+   kin_joint_data_claim( syn, &joint->acc, "Joint Acc" );
 
    /* Claim joint axis if necessary. */
    if (!joint->const_S) {
-      joint->claim_S    = syn_claim_x(    syn, 6, 4, (double*)&joint->S, (double*)&joint->S_lb, (double*)&joint->S_ub );
+      joint->claim_S    = syn_claim_x(    syn, 6, 4,
+            (double*)&joint->S, (double*)&joint->S_lb, (double*)&joint->S_ub,
+            "Joint Plucker" );
       /* The conditions are not independent as they are what lowers the
        * dimension from 6->4. */
-      joint->claim_cond = syn_claim_fvec( syn, 2, 0, joint->cond );
+      joint->claim_cond = syn_claim_fvec( syn, 2, 0, joint->cond,
+            "Joint Plucker Cond" );
    }
 
    return 0;
@@ -670,8 +689,11 @@ static void kin_joint_data_set( kin_joint_data_t *data, double *x, int len, doub
 
    assert( data->values.chunk == 0 );
 
+   /* The values are straight forward. */
    data->nvalues   = len;
    mm_initMask( &data->values, sizeof(double), len, x, mask );
+
+   /* We'll create temporary vectors to create the bounds. */
    plb = memmalloc( len * sizeof(double) );
    pub = memmalloc( len * sizeof(double) );
    for (i=0; i<len; i++) {
@@ -693,6 +715,7 @@ static void kin_joint_data_set( kin_joint_data_t *data, double *x, int len, doub
  */
 void kin_joint_setPositions( kin_joint_t *joint, double *x, int len )
 {
+   /* No mask, we always need position. */
    kin_joint_data_set( &joint->pos, x, len, 0., 2.*M_PI, NULL );
 }
 
@@ -792,6 +815,7 @@ static void kin_joint_data_setBounds( kin_joint_data_t *data,
       assert( lb[i] <= ub[i] );
 #endif /* NDEBUG */
    assert( len == data->nvalues );
+   assert( data->values.chunk != 0 );
 
    /* Copy values over. */
    mm_initMask( &data->values_lb, sizeof(double), len, lb, data->values.mask_mask );
@@ -972,7 +996,7 @@ static int kin_obj_tcp_dup( const kin_object_t *obj, kin_object_t *newobj )
    memset( &newobj->d.tcp, 0, sizeof(kin_tcp_data_t) );
    if (obj->d.tcp.P != NULL) {
       newobj->d.tcp.nP = obj->d.tcp.nP;
-      newobj->d.tcp.P = memdup( obj->d.tcp.P, obj->d.tcp.nP*sizeof(dq_t) );
+      newobj->d.tcp.P = memdup( obj->d.tcp.P, obj->d.tcp.nP * sizeof(dq_t) );
    }
    if (obj->d.tcp.V.chunk != 0)
 		mm_initDup( &newobj->d.tcp.V, &obj->d.tcp.V );
@@ -997,21 +1021,35 @@ static int kin_obj_tcp_fin( kin_object_t *obj, synthesis_t *syn )
     * only m-1 error dual quaternions. */
    obj->d.tcp.fvec_pos     = memcalloc( (syn->L-1), sizeof(dq_t) );
    obj->d.tcp.claim_pos    = syn_claim_fvec( syn, 8*(syn->L-1),
-         6*(syn->L-1), (double*)obj->d.tcp.fvec_pos );
+         6*(syn->L-1), (double*)obj->d.tcp.fvec_pos,
+         "TCP Pos" );
+
+   /* Derivatives. */
 	d = memcalloc( syn->L, sizeof(plucker_t) );
+   /* Velocity. */
    if (obj->d.tcp.V.chunk != 0) {
+      assert( obj->d.tcp.fvec_vel.chunk == 0 );
+      assert( obj->d.tcp.claim_vel == NULL );
+
 		mm_initMask( &obj->d.tcp.fvec_vel, sizeof(plucker_t),
 				obj->d.tcp.V.mask_len, d, obj->d.tcp.V.mask_mask );
       obj->d.tcp.claim_vel = syn_claim_fvec( syn, 6*obj->d.tcp.V.map_len,
-            6*obj->d.tcp.V.map_len, (double*)obj->d.tcp.fvec_vel.map_vec );
+            6*obj->d.tcp.V.map_len, (double*)obj->d.tcp.fvec_vel.map_vec,
+            "TCP Vel" );
    }
+   /* Acceleration. */
    if (obj->d.tcp.A.chunk != 0) {
+      assert( obj->d.tcp.fvec_acc.chunk == 0 );
+      assert( obj->d.tcp.claim_acc == NULL );
+
 		mm_initMask( &obj->d.tcp.fvec_acc, sizeof(plucker_t),
 				obj->d.tcp.A.mask_len, d, obj->d.tcp.A.mask_mask );
       obj->d.tcp.claim_acc = syn_claim_fvec( syn, 6*obj->d.tcp.A.map_len,
-            6*obj->d.tcp.A.map_len, (double*)obj->d.tcp.fvec_acc.map_vec );
+            6*obj->d.tcp.A.map_len, (double*)obj->d.tcp.fvec_acc.map_vec,
+            "TCP Acc" );
    }
 	free(d);
+
    /* Add tcp to list. */
    syn_tcp_add( syn, obj );
    return 0;
@@ -1760,7 +1798,8 @@ int syn_fk( const synthesis_t *syn, dq_t *fk, const double *angles )
  *    @return The newly created kinematic claim.
  */
 static kin_claim_t* syn_claim_add( kin_claim_t *claim,
-      size_t len, size_t indep, double *v, double *lb, double *ub )
+      size_t len, size_t indep, double *v, double *lb, double *ub,
+      const char *name )
 {
    kin_claim_t *l, *n;
    size_t p;
@@ -1791,6 +1830,13 @@ static kin_claim_t* syn_claim_add( kin_claim_t *claim,
    else
       n->offset = 0;
 
+   /* We store the name as it can highlight some possible issues. */
+#ifdef NDEBUG
+   (void) name;
+#else /* NDEBUG */
+   n->name  = name;
+#endif /* NDEBUG */
+
    return n;
 }
 
@@ -1816,10 +1862,11 @@ static void syn_claim_destroy( kin_claim_t *claim )
  *    @param v Data vector doing the claiming.
  *    @return The newly created claim.
  */
-static kin_claim_t* syn_claim_x( synthesis_t *syn, size_t len, size_t indep, double *v, double *lb, double *ub )
+static kin_claim_t* syn_claim_x( synthesis_t *syn, size_t len, size_t indep,
+      double *v, double *lb, double *ub, const char *name )
 {
    kin_claim_t *n;
-   n = syn_claim_add( syn->claim_x, len, indep, v, lb, ub );
+   n = syn_claim_add( syn->claim_x, len, indep, v, lb, ub, name );
    if (syn->claim_x == NULL)
       syn->claim_x = n;
    return n;
@@ -1834,10 +1881,11 @@ static kin_claim_t* syn_claim_x( synthesis_t *syn, size_t len, size_t indep, dou
  *    @param v Data vector doing the claiming.
  *    @return The newly created claim.
  */
-static kin_claim_t* syn_claim_fvec( synthesis_t *syn, size_t len, size_t indep, double *v )
+static kin_claim_t* syn_claim_fvec( synthesis_t *syn, size_t len, size_t indep,
+      double *v, const char *name )
 {
    kin_claim_t *n;
-   n = syn_claim_add( syn->claim_fvec, len, indep, v, NULL, NULL );
+   n = syn_claim_add( syn->claim_fvec, len, indep, v, NULL, NULL, name );
    if (syn->claim_fvec == NULL)
       syn->claim_fvec = n;
    return n;

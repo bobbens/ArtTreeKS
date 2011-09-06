@@ -186,6 +186,9 @@ struct kin_claim_s {
    size_t size;               /**< Size of the claim. */
    size_t indep;              /**< Independent length. */
    size_t offset;             /**< Offset. */
+#ifndef NDEBUG
+   const char *name;          /**< Name for debugging purposes. */
+#endif /* NDEBUG */
 };
 
 
