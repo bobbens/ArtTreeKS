@@ -864,6 +864,7 @@ int visualize( const synthesis_t *syn_a_in, const synthesis_t *syn_b_in )
    /* Done. */
    free( syn_P );
    free( angles_cmp );
+   free( angles_cur );
 
    return 0;
 }
