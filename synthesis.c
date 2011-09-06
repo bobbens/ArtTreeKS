@@ -1165,12 +1165,12 @@ static int kin_obj_tcp_save( const kin_object_t *obj, FILE *stream, const char *
    fprintf( stream, "             } )\n" );
 
    if (obj->d.tcp.V.mask_len > 0) {
-      fprintf( stream, "   %s:setVelocity( {\n", self );
+      fprintf( stream, "   %s:setVel( {\n", self );
       kin_obj_tcp_save_derivative( &obj->d.tcp.V, stream );
    }
 
    if (obj->d.tcp.A.mask_len > 0) {
-      fprintf( stream, "   %s:setAcceleration( {\n", self );
+      fprintf( stream, "   %s:setAcc( {\n", self );
       kin_obj_tcp_save_derivative( &obj->d.tcp.A, stream );
    }
 
