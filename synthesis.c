@@ -915,12 +915,44 @@ static int kin_obj_chain_fin( kin_object_t *obj, synthesis_t *syn )
    return 0;
 }
 
+
+static void kin_obj_chain_save_pos( char *str, char *str_lb, char *str_ub, int max,
+      const kin_joint_data_t *data )
+{
+   int j, p, p_lb, p_ub;
+   const char *tail;
+
+   str[0]    = '\0';
+   str_lb[0] = '\0';
+   str_ub[0] = '\0';
+
+   p     = 0;
+   p_lb  = 0;
+   p_ub  = 0;
+   for (j=0; j<data->nvalues; j++) {
+      tail = (j!=data->nvalues-1) ? "," : "";
+      if (data->values.mask_mask[j]) {
+         p    += snprintf( &str[p], max - p,
+               PF"%s ", ((double*)data->values.mask_vec)[j],    tail );
+         p_lb += snprintf( &str_lb[p_lb], max - p_lb,
+               PF"%s ", ((double*)data->values_lb.mask_vec)[j], tail );
+         p_ub += snprintf( &str_ub[p_ub], max - p_ub,
+               PF"%s ", ((double*)data->values_ub.mask_vec)[j], tail );
+      }
+      else {
+         p    += snprintf( &str[p],       max - p,    "nil%s ", tail );
+         p_lb += snprintf( &str_lb[p_lb], max - p_lb, "nil%s ", tail );
+         p_ub += snprintf( &str_ub[p_ub], max - p_ub, "nil%s ", tail );
+      }
+   }
+}
+
 /**
  * @brief Saves a kinematics object.
  */
 static int kin_obj_chain_save( const kin_object_t *obj, FILE *stream, const char *self )
 {
-   int i, j, p, p_lb, p_ub;
+   int i;
    kin_joint_t *kj;
    const char *str;
    char pos_str[4096], pos_lb_str[4096], pos_ub_str[4096];
@@ -928,42 +960,60 @@ static int kin_obj_chain_save( const kin_object_t *obj, FILE *stream, const char
 
    for (i=0; i<obj->d.chain.njoints; i++) {
       kj = &obj->d.chain.joints[i];
-      p     = 0;
-      p_lb  = 0;
-      p_ub  = 0;
-      for (j=0; j<kj->pos.nvalues; j++) {
-         p += snprintf( &pos_str[p], sizeof(pos_str)-p,
-               PF"%s ", ((double*)kj->pos.values.mask_vec)[j], (j!=kj->pos.nvalues-1) ? "," : "" );
-         p_lb += snprintf( &pos_lb_str[p_lb], sizeof(pos_lb_str)-p_lb,
-               PF"%s ", ((double*)kj->pos.values_lb.mask_vec)[j], (j!=kj->pos.nvalues-1) ? "," : "" );
-         p_ub += snprintf( &pos_ub_str[p_ub], sizeof(pos_ub_str)-p_ub,
-               PF"%s ", ((double*)kj->pos.values_ub.mask_vec)[j], (j!=kj->pos.nvalues-1) ? "," : "" );
+
+      /* Joint information and creation. */
+      str = "revolute";
+      fprintf( stream,
+            "   -- Joint %d\n"
+            "   local j = kin_joint.new( \"%s\" )\n",
+            i, str );
+
+      /* Position information .*/
+      kin_obj_chain_save_pos( pos_str, pos_lb_str, pos_ub_str, 4096, &kj->pos );
+      fprintf( stream,
+            "   j:setPositions( { %s } )\n"
+            "   j:setPositionBounds( { %s },\n"
+            "                        { %s } )\n",
+            pos_str, pos_lb_str, pos_ub_str );
+  
+      /* Velocity information. */
+      if (kj->vel.nvalues > 0) {
+         kin_obj_chain_save_pos( pos_str, pos_lb_str, pos_ub_str, 4096, &kj->vel );
+         fprintf( stream,
+               "   j:setVelocities( { %s }, %d )\n"
+               "   j:setVelocityBounds( { %s },\n"
+               "                        { %s } )\n",
+               pos_str, kj->vel.values.mask_len, pos_lb_str, pos_ub_str );
       }
+
+      /* Acceleration information. */
+      if (kj->acc.nvalues > 0) {
+         kin_obj_chain_save_pos( pos_str, pos_lb_str, pos_ub_str, 4096, &kj->acc );
+         fprintf( stream,
+               "   j:setAccelerations( { %s }, %d )\n"
+               "   j:setAccelerationBounds( { %s },\n"
+               "                        { %s } )\n",
+               pos_str, kj->acc.values.mask_len, pos_lb_str, pos_ub_str );
+      }
+
+      /* Plucker axis. */
       s     = kj->S.s;
       s0    = kj->S.s0;
       lb    = kj->S_lb.s;
       lb0   = kj->S_lb.s0;
       ub    = kj->S_ub.s;
       ub0   = kj->S_ub.s0;
-
-      str = "revolute";
       fprintf( stream,
-            "   -- Joint %d\n"
-            "   local j = kin_joint.new( \"%s\" )\n"
-            "   j:setPositions( { %s } )\n"
-            "   j:setPositionBounds( { %s },\n"
-            "                        { %s } )\n"
             "   j:setPlucker( { "PF", "PF", "PF" }, { "PF", "PF", "PF" } )\n"
             "   j:setPluckerBounds( { "PF", "PF", "PF" }, { "PF", "PF", "PF" },\n"
-            "                       { "PF", "PF", "PF" }, { "PF", "PF", "PF" } )\n"
-            "   %s:attach( j )\n",
-            i, str, pos_str, pos_lb_str, pos_ub_str,
+            "                       { "PF", "PF", "PF" }, { "PF", "PF", "PF" } )\n",
             s[0], s[1], s[2], s0[0], s0[1], s0[2],
             lb[0], lb[1], lb[2],
             ub[0], ub[1], ub[2],
             lb0[0], lb0[1], lb0[2],
-            ub0[0], ub0[1], ub0[2],
-            self );
+            ub0[0], ub0[1], ub0[2] );
+
+      fprintf( stream, "   %s:attach( j )\n", self );
    }
    return 0;
 }
@@ -1064,11 +1114,32 @@ static int kin_obj_split_free( kin_object_t *obj )
    free( obj->d.split.objs );
    return 0;
 } 
+static int kin_obj_tcp_save_derivative( const mm_vec_t *der, FILE *stream )
+{
+   int i;
+   const char *tail;
+   plucker_t *p;
+
+   for (i=0; i<der->mask_len; i++) {
+      fprintf( stream, "       -- Frame %d\n", i );
+      tail = (i==der->mask_len-1) ? "" : ",";
+      if (der->mask_mask[i]) {
+         p = (plucker_t*) der->mask_vec;
+         fprintf( stream, "       { "PF", "PF", "PF", "PF", "PF", "PF" }%s\n",
+               p->s[0], p->s[1], p->s[2], p->s0[0], p->s0[1], p->s0[2], tail );
+      }
+      else
+         fprintf( stream, "       nil%s\n", tail );
+   }
+   fprintf( stream,       "          }, %d )\n", der->mask_len );
+   return 0;
+}
 static int kin_obj_tcp_save( const kin_object_t *obj, FILE *stream, const char *self )
 {
    int i;
    dq_t Q;
    double R[3][3], d[3];
+
    fprintf( stream, "   %s:setFK( {\n", self );
    for (i=0; i<obj->d.tcp.nP; i++) {
 
@@ -1092,6 +1163,17 @@ static int kin_obj_tcp_save( const kin_object_t *obj, FILE *stream, const char *
                        (i < obj->d.tcp.nP-1) ? "," : "" );
    }
    fprintf( stream, "             } )\n" );
+
+   if (obj->d.tcp.V.mask_len > 0) {
+      fprintf( stream, "   %s:setVelocity( {\n", self );
+      kin_obj_tcp_save_derivative( &obj->d.tcp.V, stream );
+   }
+
+   if (obj->d.tcp.A.mask_len > 0) {
+      fprintf( stream, "   %s:setAcceleration( {\n", self );
+      kin_obj_tcp_save_derivative( &obj->d.tcp.A, stream );
+   }
+
    return 0;
 }
 /**
