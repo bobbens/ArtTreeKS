@@ -41,7 +41,7 @@ int sminpack( minpack_func_mn fcn, void *p,
    wa3      = (double*)&min_buffer[ offset ];
    offset  += n*sizeof(double);
    wa4      = (double*)&min_buffer[ offset ];
-   offset  += m*sizeof(double);
+   /*offset  += m*sizeof(double);*/
 
    /* Begin the solvation. */
    if (tstart != NULL)
