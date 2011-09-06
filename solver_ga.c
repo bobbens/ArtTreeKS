@@ -393,12 +393,35 @@ static void ga_ent_seed( ga_entity_t *ent, const synthesis_t *syn, const ga_opti
  */
 static void ga_ent_mutate( ga_entity_t *ent, const synthesis_t *parent, const ga_options_t *opts )
 {
-   int i, j, n, rj, ra;
-   plucker_t *pl, *pl_lb, *pl_ub;
-   int c;
-   double v, lb, ub;
+   double v;
 
    v = opts->verbose;
+
+#if 1
+   int i, n, nn;
+   (void) parent;
+   n = rand_int_range( 1, (ent->syn->n / 64) ); /* Mutations to do. */
+   for (nn=0; nn<n; nn++) {
+      kin_claim_t *c;
+      int r = rand_int_range( 0, ent->syn->n-1 );
+      int p = 0;
+      for (c=ent->syn->claim_x; c!=NULL; c=c->next) {
+         int o = r-p;
+         if (o-(int)c->size < 0) {
+            c->dat[o] = rand_double_range( c->lb[o], c->ub[o] );
+            break;
+         }
+         p += c->size;
+      }
+   }
+
+   /* We want to renormalize all the plucker coordinates, just in case. */
+   for (i=0; i<ent->syn->njoints; i++)
+      plucker_normalize( &ent->syn->joints[i]->S );
+#else
+   int i, j, n, rj, ra;
+   plucker_t *pl, *pl_lb, *pl_ub;
+   double v, lb, ub;
 
    /* Mutate angles. */
    if (rand_bool()) {
@@ -465,6 +488,7 @@ static void ga_ent_mutate( ga_entity_t *ent, const synthesis_t *parent, const ga
          plucker_normalize( pl );
       }
    }
+#endif
 
    /* Debug. */
    LOG( v>9, "-Mutated entity-%03d------------\n", ent->id );
