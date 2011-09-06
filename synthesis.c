@@ -1841,7 +1841,7 @@ int syn_fk( const synthesis_t *syn, dq_t *fk, const double *angles )
    dq_t R;
    double kz[3] = { 0., 0., 0. };
 
-   assert(syn->finalized);
+   assert( syn->finalized );
 
    /* Load angle information. */
    for (i=0; i<syn->njoints; i++)
@@ -2423,8 +2423,17 @@ void syn_printfDetail( FILE* stream, const synthesis_t *syn )
                t[0], t[1], t[2], t0[0], t0[1], t0[2],
                vec3_dot( t, t0 ) );
          mm_updateMask( &kj->pos.values );
-         for (k=0; k<kj->pos.values.mask_len; k++)
-            fprintf( stream, "          [%d] %.3e\n", k, ((double*)kj->pos.values.mask_vec)[k] );
+         mm_updateMask( &kj->vel.values );
+         mm_updateMask( &kj->acc.values );
+         for (k=0; k<kj->pos.values.mask_len; k++) {
+            fprintf( stream, "         " );
+            fprintf( stream, " [%02d] %+.3e", k, ((double*)kj->pos.values.mask_vec)[k] );
+            if ((k < kj->vel.values.mask_len) && (kj->vel.values.mask_mask[k]))
+               fprintf( stream, " [%02d] %+.3e", k, ((double*)kj->vel.values.mask_vec)[k] );
+            if ((k < kj->acc.values.mask_len) && (kj->acc.values.mask_mask[k]))
+               fprintf( stream, " [%02d] %+.3e", k, ((double*)kj->acc.values.mask_vec)[k] );
+            fprintf( stream, "\n" );
+         }
       }
    }
    err = 0.;
