@@ -38,7 +38,7 @@ int mm_initMap( mm_vec_t *mm, size_t chunk, int map_len, void *map_vec, const in
 
 int mm_initMask( mm_vec_t *mm, size_t chunk, int mask_len, void *mask_vec, const int *mask_mask )
 {
-   int i;
+   int i, j;
    /* Duplicate new data. */
    mm->chunk    = chunk;
    mm->mask_len = mask_len;
@@ -57,6 +57,10 @@ int mm_initMask( mm_vec_t *mm, size_t chunk, int mask_len, void *mask_vec, const
          mm->map_len++;
    mm->map_vec = calloc( mm->map_len, mm->chunk );
    mm->map_map = calloc( mm->map_len, sizeof(int) );
+   j = 0;
+   for (i=0; i<mm->mask_len; i++)
+      if (mm->mask_mask[i])
+         mm->map_map[ j++ ] = i;
    /* Synchronize data. */
    mm_updateMap( mm );
    return 0;
@@ -104,8 +108,10 @@ int mm_updateMask( mm_vec_t *mm )
 
 
 #if 0
+
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 static int print_mm( mm_vec_t *mm )
 {
@@ -136,37 +142,74 @@ static int print_mm( mm_vec_t *mm )
    return 0;
 }
 
+
+static const char* mm_compare( const mm_vec_t *mma, const mm_vec_t *mmb )
+{
+   if (mma->chunk    != mmb->chunk)
+      return "Chunk mismatch";
+   if (mma->map_len  != mmb->map_len)
+      return "Map len mismatch";
+   if (mma->mask_len != mmb->mask_len)
+      return "Mask len mismatch";
+   /* Map. */
+   if (memcmp( mma->map_vec,   mmb->map_vec,   mma->chunk * mma->map_len ))
+      return "Map vec mismatch";
+   if (memcmp( mma->map_map,   mmb->map_map,   sizeof(int) * mma->map_len ))
+      return "Map map misamtch";
+   /* Mask. */
+   if (memcmp( mma->mask_vec,  mmb->mask_vec,  mma->chunk * mma->mask_len ))
+      return "Mask vec mismatch";
+   if (memcmp( mma->mask_mask, mmb->mask_mask, sizeof(int) * mma->mask_len ))
+      return "Mask mask mismatch";
+   return NULL;
+}
+
+
 int main (void)
 {
    double *d, map_vec[6] = { 1., 2., 3., 5., 4., 6. };
-   int map_map[6] = { 1, 3, 5, 9, 7, 11 };
-   mm_vec_t mm;
+   int map_map[6]        = { 1,  3,  5,  9,  7, 11  };
+   double mask_vec[12]   = { 0., 1., 0., 2., 0., 3., 0., 4., 0., 5., 0., 6. };
+   int mask_mask[12]     = { 0,  1,  0,  1,  0,  1,  0,  1,  0,  1,  0,  1  };
+   mm_vec_t mma, mmb;
+   const char *ret;
 
-   mm_initMap( &mm, sizeof(double), 6, map_vec, map_map, 12 );
-   print_mm( &mm );
+   /* Test load. */
+   mm_initMap( &mma, sizeof(double), 6, map_vec, map_map, 12 );
+   mm_initMask( &mmb, sizeof(double), 12, mask_vec, mask_mask );
+   ret = mm_compare( &mma, &mmb );
+   if (ret != NULL) {
+      printf( "%s\n", ret );
+      printf( "MMA\n" );
+      print_mm( &mma );
+      printf( "MMB\n" );
+      print_mm( &mmb );
+   }
 
-   printf( "TEST MAP\n" );
-   d = (double*) mm.map_vec;
+   /* Test manipulate map. */
+   d = (double*) mma.map_vec;
    d[0] = 6.;
    d[5] = 1.;
-   print_mm( &mm );
-   mm_updateMask( &mm );
-   print_mm( &mm );
+   mm_updateMask( &mma );
+   d = (double*) mmb.mask_vec;
+   d[1]  = 6.;
+   d[11] = 1.;
+   mm_updateMap( &mmb );
+   ret = mm_compare( &mma, &mmb );
+   if (ret != NULL) {
+      printf( "%s\n", ret );
+      printf( "MMA\n" );
+      print_mm( &mma );
+      printf( "MMB\n" );
+      print_mm( &mmb );
+   }
 
-   printf( "TEST MASK\n" );
-   d = (double*) mm.mask_vec;
-   d[1]  = 1.;
-   d[11] = 6.;
-   print_mm( &mm );
-   mm_updateMap( &mm );
-   print_mm( &mm );
-
-   mm_cleanup( &mm );
+   mm_cleanup( &mma );
+   mm_cleanup( &mmb );
    return 0;
 }
+
 #endif
-
-
 
 
 
