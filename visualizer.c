@@ -619,6 +619,7 @@ int visualize( const synthesis_t *syn_a_in, const synthesis_t *syn_b_in )
       syn      = syn_dup( syn_a_in );
    if (syn_b_in != NULL)
       syn_b    = syn_dup( syn_b_in );
+   assert( syn != NULL );
 
    /* Colours. */
 #if 0

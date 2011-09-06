@@ -381,8 +381,12 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
          /* Store in fvec: T-P. */
          dq_op_sub( branch->tcp->d.tcp.fvec_pos[m-1], T, branch->tcp->d.tcp.P[m] );
       }
-      else
-         memcpy( &j->S_cur, &j->S, sizeof(plucker_t) );
+      else {
+         for (i=0; i<branch->njoints; i++) {
+            j = branch->joints[i];
+            memcpy( &j->S_cur, &j->S, sizeof(plucker_t) );
+         }
+      }
 
       /* Update velocities. */
       if ((branch->tcp->d.tcp.claim_vel != NULL) &&
