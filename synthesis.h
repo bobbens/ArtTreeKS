@@ -51,10 +51,9 @@ typedef enum kin_joint_type_e {
  */
 typedef struct kin_joint_data_s {
    int nvalues;         /**< Number of values. */
-   double *values;      /**< Values of each value. */
-   double *values_lb;   /**< Lower bounds for each value. */
-   double *values_ub;   /**< Upper bounds for each value. */
-   int *values_bool;    /**< Whether or not value really matters. */
+   mm_vec_t values;     /**< Values of each value. */
+   mm_vec_t values_lb;  /**< Lower bounds for each value. */
+   mm_vec_t values_ub;  /**< Upper bounds for each value. */
    kin_claim_t *claim;  /**< Claim data. */
    int constant;        /**< Is the data constant? */
 } kin_joint_data_t;
@@ -264,8 +263,8 @@ void kin_joint_dupInit( kin_joint_t *nj, const kin_joint_t *oj );
 int kin_joint_claim( synthesis_t *syn, kin_joint_t *joint );
 void kin_joint_setPlucker( kin_joint_t *joint, double s[3], double s0[3] );
 void kin_joint_setPositions( kin_joint_t *joint, double *x, int len );
-void kin_joint_setVelocities( kin_joint_t *joint, double *v, int len );
-void kin_joint_setAccelerations( kin_joint_t *joint, double *a, int len );
+void kin_joint_setVelocities( kin_joint_t *joint, double *v, int len, const int *mask );
+void kin_joint_setAccelerations( kin_joint_t *joint, double *a, int len, const int *mask );
 void kin_joint_setConstS( kin_joint_t *joint, int constant );
 void kin_joint_setConstPos( kin_joint_t *joint, int constant );
 void kin_joint_setPluckerBounds( kin_joint_t *joint,

@@ -333,7 +333,7 @@ static int jointL_setVelocities( lua_State *L )
    v = jointL_setParameter( L, &n );
 
    /* Set data and clean up. */
-   kin_joint_setVelocities( kj, v, n );
+   kin_joint_setVelocities( kj, v, n, NULL );
    free(v);
    return 0;
 }
@@ -347,7 +347,7 @@ static int jointL_setAccelerations( lua_State *L )
    v = jointL_setParameter( L, &n );
 
    /* Set data and clean up. */
-   kin_joint_setAccelerations( kj, v, n );
+   kin_joint_setAccelerations( kj, v, n, NULL );
    free(v);
    return 0;
 }

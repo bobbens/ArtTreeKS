@@ -252,7 +252,7 @@ static int vis_updateDataFrom( const synthesis_t *syn,
          if (frame == 0)
             angles[i] = 0.;
          else
-            angles[i] = syn->joints[i]->pos.values[ frame-1 ];
+            angles[i] = ((double*)syn->joints[i]->pos.values.mask_vec)[ frame-1 ];
       }
    }
    else {
@@ -354,13 +354,13 @@ static int vis_updateData( GLfloat *data, GLfloat *col, const synthesis_t *syn,
          /* Update the transform with current line untransformed. */
          if (angles == NULL) {
             if (f==0)
-               ang = state * kj->pos.values[0];
+               ang = state * ((double*)kj->pos.values.mask_vec)[0];
             else if (f<syn->L-1) {
-               double diff = ang_diff( kj->pos.values[f-1], kj->pos.values[f] );
-               ang = kj->pos.values[f-1] + state * diff;
+               double diff = ang_diff( ((double*)kj->pos.values.mask_vec)[f-1], ((double*)kj->pos.values.mask_vec)[f] );
+               ang = ((double*)kj->pos.values.mask_vec)[f-1] + state * diff;
             }
             else
-               ang = kj->pos.values[ f-1 ];
+               ang = ((double*)kj->pos.values.mask_vec)[ f-1 ];
          }
          else
             ang = kj->pos_cur;

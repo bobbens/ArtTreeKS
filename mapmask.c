@@ -43,7 +43,13 @@ int mm_initMask( mm_vec_t *mm, size_t chunk, int mask_len, void *mask_vec, const
    mm->chunk    = chunk;
    mm->mask_len = mask_len;
    mm->mask_vec = memdup( mask_vec, mm->mask_len * mm->chunk );
-   mm->mask_mask = memdup( mask_mask, mm->mask_len * sizeof(int) );
+   if (mask_mask == NULL) {
+      mm->mask_mask = malloc( mm->mask_len * sizeof(int) );
+      for (i=0; i<mm->mask_len; i++)
+         ((int*)mm->mask_mask)[i] = 1;
+   }
+   else
+      mm->mask_mask = memdup( mask_mask, mm->mask_len * sizeof(int) );
    /* Create the map. */
    mm->map_len = 0;
    for (i=0; i<mm->mask_len; i++)
@@ -61,10 +67,10 @@ int mm_initDup( mm_vec_t *mm, const mm_vec_t *in )
 	mm->chunk = in->chunk;
 	mm->mask_len = in->mask_len;
 	mm->mask_vec = memdup( in->mask_vec, in->chunk * in->mask_len );
-	mm->mask_mask = memdup( in->mask_mask, in->chunk * sizeof(int) );
+	mm->mask_mask = memdup( in->mask_mask, in->mask_len * sizeof(int) );
 	mm->map_len = in->map_len;
 	mm->map_vec = memdup( in->map_vec, in->chunk * in->map_len );
-	mm->map_map = memdup( in->map_map, in->chunk * sizeof(int) );
+	mm->map_map = memdup( in->map_map, in->map_len * sizeof(int) );
    return 0;
 }
 
@@ -79,6 +85,8 @@ void mm_cleanup( mm_vec_t *mm )
 int mm_updateMap( mm_vec_t *mm )
 {
    int i;
+   if (mm->chunk == 0)
+      return 1;
    for (i=0; i<mm->map_len; i++)
       memcpy( mm->map_vec + mm->chunk*i, mm->mask_vec + mm->chunk*mm->map_map[i], mm->chunk );
    return 0;
@@ -87,6 +95,8 @@ int mm_updateMap( mm_vec_t *mm )
 int mm_updateMask( mm_vec_t *mm )
 {
    int i;
+   if (mm->chunk == 0)
+      return 1;
    for (i=0; i<mm->map_len; i++)
       memcpy( mm->mask_vec + mm->chunk*mm->map_map[i], mm->map_vec + mm->chunk*i, mm->chunk );
    return 0;

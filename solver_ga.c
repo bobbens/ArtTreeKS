@@ -371,7 +371,7 @@ static void ga_ent_seed( ga_entity_t *ent, const synthesis_t *syn, const ga_opti
       }
       if (kj->pos.claim != NULL) {
          for (j=0; j<kj->pos.nvalues; j++) {
-            LOG( v>2&&v<=9, "      pos[%d] = %.3e\n", j, kj->pos.values[j] );
+            LOG( v>2&&v<=9, "      pos[%d] = %.3e\n", j, ((double*)kj->pos.values.mask_vec)[j] );
          }
       }
    }
@@ -414,9 +414,9 @@ static void ga_ent_mutate( ga_entity_t *ent, const synthesis_t *parent, const ga
          if (ent->syn->joints[rj]->pos.claim != NULL) {
             ra = rand_int_range( 0, ent->syn->L-2 ); /* It's from 0 to L-1 */
             /* Calculate bounds. */
-            lb    = parent->joints[rj]->pos.values_lb[ra];
-            ub    = parent->joints[rj]->pos.values_ub[ra];
-            ent->syn->joints[rj]->pos.values[ra] = rand_double_range( lb, ub );
+            lb    = ((double*)parent->joints[rj]->pos.values_lb.mask_vec)[ra];
+            ub    = ((double*)parent->joints[rj]->pos.values_ub.mask_vec)[ra];
+            ((double*)ent->syn->joints[rj]->pos.values.mask_vec)[ra] = rand_double_range( lb, ub );
          }
       }
    }

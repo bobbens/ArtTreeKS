@@ -324,7 +324,16 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
       j          = branch->joints[i];
       j->cond[0] = (vec3_norm( j->S.s ) - 1.); /* ||s|| = 1 */
       j->cond[1] = vec3_dot( j->S.s, j->S.s0 ); /* s.s0 = 0 */
+
+      /* Need to map data from memory to vector. */
+      mm_updateMask( &j->vel.values );
+      mm_updateMask( &j->acc.values );
    }
+
+   /* Convert from internal map layout to mask layout.
+    * TODO this can probably be elsewhere. */
+   mm_updateMask( &branch->tcp->d.tcp.V );
+   mm_updateMask( &branch->tcp->d.tcp.A );
 
    /* Calculate all the frame data.
     * This is tricky because we have L-1 positions and L velocities/accelerations.
@@ -338,6 +347,7 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
          /* Concatenate relative displacements around axes. */
          for (i=0; i<branch->njoints; i++) {
             dq_t S;
+            double *d;
             j = branch->joints[i];
 
             /* Store current joint position. */
@@ -346,7 +356,8 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
             plucker_from_dq( &j->S_cur, S );
 
             /* Update propagation. */
-            dq_cr_rotation_plucker( R, j->pos.values[m-1], j->S.s, j->S.s0 );
+            d = (double*) j->pos.values.mask_vec;
+            dq_cr_rotation_plucker( R, d[m-1], j->S.s, j->S.s0 );
             dq_op_mul( T, T, R );
          }
 
@@ -362,9 +373,10 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
          memcpy( &j->S_cur, &j->S, sizeof(plucker_t) );
 
       /* Update velocities. */
-      if ((branch->tcp->d.tcp.fvec_vel.chunk != 0) &&
+      if ((branch->tcp->d.tcp.claim_vel != NULL) &&
             ((branch->tcp->d.tcp.V.mask_mask == NULL) ||
-             (branch->tcp->d.tcp.V.mask_mask[m] != 0))) {
+             ((branch->tcp->d.tcp.V.mask_len > m) &&
+               (branch->tcp->d.tcp.V.mask_mask[m] != 0)))) {
          /* Initialize result. */
          plucker_t v;
 		   plucker_t *d, *V;
@@ -373,8 +385,10 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
           *    v = \sum v_i S_i
           */
          for (i=0; i<branch->njoints; i++) {
+            double *dv;
             j = branch->joints[i];
-            lie_joint_mac( &v, j->vel.values[m], &j->S_cur );
+            dv = (double*) j->vel.values.mask_vec;
+            lie_joint_mac( &v, dv[m], &j->S_cur );
          }
          /* Copy result. */
 			d = (plucker_t*) branch->tcp->d.tcp.fvec_vel.mask_vec;
@@ -383,9 +397,10 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
       }
 
       /* Update accelerations. */
-      if ((branch->tcp->d.tcp.fvec_acc.chunk != 0) &&
+      if ((branch->tcp->d.tcp.claim_acc != NULL) &&
             ((branch->tcp->d.tcp.A.mask_mask == NULL) ||
-             (branch->tcp->d.tcp.A.mask_mask[m] != 0))) {
+             ((branch->tcp->d.tcp.A.mask_len > m) &&
+                (branch->tcp->d.tcp.A.mask_mask[m] != 0)))) {
          /* Initialize result. */
          plucker_t a;
 		   plucker_t *d, *A;
@@ -394,13 +409,16 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
           *    a_1 = \sum a_i S_i
           */
          for (i=0; i<branch->njoints; i++) {
+            double *dv;
             j = branch->joints[i];
-            lie_joint_mac( &a, j->acc.values[m], &j->S_cur );
+            dv = (double*) j->acc.values.mask_vec;
+            lie_joint_mac( &a, dv[m], &j->S_cur );
          }
          /* More complex coriolis part.
           *    a_2 = \sum a_i \sum a_k [s_i, s_k]
           */
          for (i=0; i<branch->njoints-1; i++) {
+            double *dv;
             plucker_t acc;
             j = branch->joints[i];
 
@@ -409,9 +427,11 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
                plucker_t br;
                jk = branch->joints[k];
                lie_joint_bracket( &br, &j->S_cur, &jk->S_cur );
-               lie_joint_mac( &acc, jk->vel.values[m], &br );
+               dv = (double*) jk->vel.values.mask_vec;
+               lie_joint_mac( &acc, dv[m], &br );
             }
-            lie_joint_mac( &a, j->vel.values[m], &acc );
+            dv = (double*) j->vel.values.mask_vec;
+            lie_joint_mac( &a, dv[m], &acc );
          }
          /* Copy result. */
 			d = (plucker_t*) branch->tcp->d.tcp.fvec_acc.mask_vec;
@@ -419,6 +439,10 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
          plucker_sub( &d[m], &a, &A[m] );
       }
    }
+
+   /* Convert back to map layout for the solver. */
+   mm_updateMap( &branch->tcp->d.tcp.fvec_vel );
+   mm_updateMap( &branch->tcp->d.tcp.fvec_acc );
 
    return 0;
 }
@@ -499,10 +523,9 @@ int kin_joint_init( kin_joint_t *joint, kin_joint_type_t type )
  */
 static void kin_joint_data_free( kin_joint_data_t *data )
 {
-   free( data->values );
-   free( data->values_lb );
-   free( data->values_ub );
-   free( data->values_bool );
+   mm_cleanup( &data->values );
+   mm_cleanup( &data->values_lb );
+   mm_cleanup( &data->values_ub );
 #ifndef NDEBUG
    memset( data, 0, sizeof(kin_joint_data_t) );
 #endif /* NDEBUG */
@@ -531,17 +554,14 @@ static void kin_joint_data_dup( kin_joint_data_t *dest, const kin_joint_data_t *
    dest->nvalues = src->nvalues;
    dest->constant = src->constant;
 
-   if (src->values != NULL)
-      dest->values      = memdup( src->values,      src->nvalues * sizeof(double) );
+   if (src->values.chunk != 0)
+      mm_initDup( &dest->values, &src->values );
 
-   if (src->values_lb != NULL)
-      dest->values_lb   = memdup( src->values_lb,   src->nvalues * sizeof(double) );
+   if (src->values_lb.chunk != 0)
+      mm_initDup( &dest->values_lb, &src->values_lb );
 
-   if (src->values_ub != NULL)
-      dest->values_ub   = memdup( src->values_ub,   src->nvalues * sizeof(double) );
-
-   if (src->values_bool != NULL)
-      dest->values_bool = memdup( src->values_bool, src->nvalues * sizeof(int) );
+   if (src->values_ub.chunk != 0)
+      mm_initDup( &dest->values_ub, &src->values_ub );
 }
 
 
@@ -578,10 +598,12 @@ void kin_joint_dupInit( kin_joint_t *nj, const kin_joint_t *oj )
 static int kin_joint_data_claim( synthesis_t *syn, kin_joint_data_t *data )
 {
    assert( data->claim == NULL );
-   if (data->values != NULL) {
+   if (data->values.chunk != 0) {
       //assert( data->nvalues == syn->L-1 );
-      data->claim = syn_claim_x( syn, data->nvalues, data->nvalues,
-            data->values, data->values_lb, data->values_ub );
+      data->claim = syn_claim_x( syn, data->values.map_len, data->values.map_len,
+            (double*) data->values.map_vec,
+            (double*) data->values_lb.map_vec,
+            (double*) data->values_ub.map_vec );
    }
    return 0;
 }
@@ -641,20 +663,25 @@ void kin_joint_setPlucker( kin_joint_t *joint, double s[3], double s0[3] )
  *    @param lb Default low bound value.
  *    @param ub Default upper bound value.
  */
-static void kin_joint_data_set( kin_joint_data_t *data, double *x, int len, double lb, double ub )
+static void kin_joint_data_set( kin_joint_data_t *data, double *x, int len, double lb, double ub, const int *mask )
 {
    int i;
+   double *pub, *plb;
 
-   assert( data->values == NULL );
+   assert( data->values.chunk == 0 );
 
    data->nvalues   = len;
-   data->values    = memdup( x, len * sizeof(double) );
-   data->values_lb = memmalloc( len * sizeof(double) );
-   data->values_ub = memmalloc( len * sizeof(double) );
+   mm_initMask( &data->values, sizeof(double), len, x, mask );
+   plb = memmalloc( len * sizeof(double) );
+   pub = memmalloc( len * sizeof(double) );
    for (i=0; i<len; i++) {
-      data->values_lb[i] = lb;
-      data->values_ub[i] = ub;
+      plb[i] = lb;
+      pub[i] = ub;
    }
+   mm_initMask( &data->values_lb, sizeof(double), len, plb, mask );
+   mm_initMask( &data->values_ub, sizeof(double), len, pub, mask );
+   free( plb );
+   free( pub );
 }
 
 
@@ -666,7 +693,7 @@ static void kin_joint_data_set( kin_joint_data_t *data, double *x, int len, doub
  */
 void kin_joint_setPositions( kin_joint_t *joint, double *x, int len )
 {
-   kin_joint_data_set( &joint->pos, x, len, 0., 2.*M_PI );
+   kin_joint_data_set( &joint->pos, x, len, 0., 2.*M_PI, NULL );
 }
 
 
@@ -676,9 +703,9 @@ void kin_joint_setPositions( kin_joint_t *joint, double *x, int len )
  *    @param v Velocities to set.
  *    @param len Length of velocity vector.
  */
-void kin_joint_setVelocities( kin_joint_t *joint, double *v, int len )
+void kin_joint_setVelocities( kin_joint_t *joint, double *v, int len, const int *mask )
 {
-   kin_joint_data_set( &joint->vel, v, len, -M_PI, M_PI );
+   kin_joint_data_set( &joint->vel, v, len, -M_PI, M_PI, mask );
 }
 
 
@@ -688,9 +715,9 @@ void kin_joint_setVelocities( kin_joint_t *joint, double *v, int len )
  *    @param a Accelerations to set.
  *    @param len Length of the accelerations vector.
  */
-void kin_joint_setAccelerations( kin_joint_t *joint, double *a, int len )
+void kin_joint_setAccelerations( kin_joint_t *joint, double *a, int len, const int *mask )
 {
-   kin_joint_data_set( &joint->acc, a, len, -M_PI, M_PI );
+   kin_joint_data_set( &joint->acc, a, len, -M_PI, M_PI, mask );
 }
 
 
@@ -767,8 +794,8 @@ static void kin_joint_data_setBounds( kin_joint_data_t *data,
    assert( len == data->nvalues );
 
    /* Copy values over. */
-   memcpy( data->values_lb, lb, len * sizeof(double) );
-   memcpy( data->values_ub, ub, len * sizeof(double) );
+   mm_initMask( &data->values_lb, sizeof(double), len, lb, data->values.mask_mask );
+   mm_initMask( &data->values_ub, sizeof(double), len, ub, data->values.mask_mask );
 }
 
 
@@ -885,11 +912,11 @@ static int kin_obj_chain_save( const kin_object_t *obj, FILE *stream, const char
       p_ub  = 0;
       for (j=0; j<kj->pos.nvalues; j++) {
          p += snprintf( &pos_str[p], sizeof(pos_str)-p,
-               PF"%s ", kj->pos.values[j], (j!=kj->pos.nvalues-1) ? "," : "" );
+               PF"%s ", ((double*)kj->pos.values.mask_vec)[j], (j!=kj->pos.nvalues-1) ? "," : "" );
          p_lb += snprintf( &pos_lb_str[p_lb], sizeof(pos_lb_str)-p_lb,
-               PF"%s ", kj->pos.values_lb[j], (j!=kj->pos.nvalues-1) ? "," : "" );
+               PF"%s ", ((double*)kj->pos.values_lb.mask_vec)[j], (j!=kj->pos.nvalues-1) ? "," : "" );
          p_ub += snprintf( &pos_ub_str[p_ub], sizeof(pos_ub_str)-p_ub,
-               PF"%s ", kj->pos.values_ub[j], (j!=kj->pos.nvalues-1) ? "," : "" );
+               PF"%s ", ((double*)kj->pos.values_ub.mask_vec)[j], (j!=kj->pos.nvalues-1) ? "," : "" );
       }
       s     = kj->S.s;
       s0    = kj->S.s0;
@@ -1339,11 +1366,6 @@ int kin_obj_tcp_velocity( kin_object_t *tcp,
    /* Only works on TCP. */
    assert( tcp->type == KIN_TYPE_TCP );
 
-   if (tcp->d.tcp.nP == 0)
-      tcp->d.tcp.nP = num;
-   else
-      assert( tcp->d.tcp.nP == num );
-
    assert( tcp->d.tcp.V.chunk == 0 );
 	mm_initMask( &tcp->d.tcp.V, sizeof(plucker_t), num, (void*)vel, mask );
    return 0;
@@ -1358,11 +1380,6 @@ int kin_obj_tcp_acceleration( kin_object_t *tcp,
 {
    /* Only works on TCP. */
    assert( tcp->type == KIN_TYPE_TCP );
-
-   if (tcp->d.tcp.nP == 0)
-      tcp->d.tcp.nP = num;
-   else
-      assert( tcp->d.tcp.nP == num );
 
    assert( tcp->d.tcp.A.chunk == 0 );
 	mm_initMask( &tcp->d.tcp.A, sizeof(plucker_t), num, (void*)acc, mask );
@@ -1749,7 +1766,8 @@ static kin_claim_t* syn_claim_add( kin_claim_t *claim,
    size_t p;
 
    assert( v != NULL );
-   assert( len > 0 );
+   if (len <= 0)
+      return NULL;
 
    /* Set data. */
    n        = memcalloc( 1, sizeof(kin_claim_t) );
@@ -2278,7 +2296,7 @@ void syn_printfDetail( FILE* stream, const synthesis_t *syn )
                t[0], t[1], t[2], t0[0], t0[1], t0[2],
                vec3_dot( t, t0 ) );
          for (k=0; k<kj->pos.nvalues; k++)
-            fprintf( stream, "          [%d] %.3e\n", k, kj->pos.values[k] );
+            fprintf( stream, "          [%d] %.3e\n", k, ((double*)kj->pos.values.mask_vec)[k] );
       }
    }
    err = 0.;
