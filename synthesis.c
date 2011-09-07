@@ -409,8 +409,8 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
             lie_joint_mac( &v, dv[m], &j->S_cur );
          }
          /* Copy result. */
-			d = (plucker_t*) branch->tcp->d.tcp.fvec_vel.mask_vec;
-			V = (plucker_t*) branch->tcp->d.tcp.V.mask_vec;
+			d = (plucker_t*) branch->tcp->d.tcp.fvec_vel.mask_vec; /* Result. */
+			V = (plucker_t*) branch->tcp->d.tcp.V.mask_vec; /* Static data. */
          plucker_sub( &d[m], &v, &V[m] );
 
          for (i=0; i<branch->njoints; i++) {
@@ -1086,8 +1086,7 @@ static int kin_obj_tcp_fin( kin_object_t *obj, synthesis_t *syn )
     * only m-1 error dual quaternions. */
    obj->d.tcp.fvec_pos     = memcalloc( (syn->L-1), sizeof(dq_t) );
    obj->d.tcp.claim_pos    = syn_claim_fvec( syn, 8*(syn->L-1),
-         6*(syn->L-1), (double*)obj->d.tcp.fvec_pos,
-         "TCP Pos" );
+         6*(syn->L-1), (double*)obj->d.tcp.fvec_pos, "TCP Pos" );
 
    /* Derivatives. */
 	d = memcalloc( syn->L, sizeof(plucker_t) );
@@ -1098,8 +1097,8 @@ static int kin_obj_tcp_fin( kin_object_t *obj, synthesis_t *syn )
 
 		mm_initMask( &obj->d.tcp.fvec_vel, sizeof(plucker_t),
 				obj->d.tcp.V.mask_len, d, obj->d.tcp.V.mask_mask );
-      obj->d.tcp.claim_vel = syn_claim_fvec( syn, 6*obj->d.tcp.V.map_len,
-            6*obj->d.tcp.V.map_len, (double*)obj->d.tcp.fvec_vel.map_vec,
+      obj->d.tcp.claim_vel = syn_claim_fvec( syn, 6*obj->d.tcp.fvec_vel.map_len,
+            6*obj->d.tcp.fvec_vel.map_len, (double*)obj->d.tcp.fvec_vel.map_vec,
             "TCP Vel" );
    }
    /* Acceleration. */
@@ -1109,8 +1108,8 @@ static int kin_obj_tcp_fin( kin_object_t *obj, synthesis_t *syn )
 
 		mm_initMask( &obj->d.tcp.fvec_acc, sizeof(plucker_t),
 				obj->d.tcp.A.mask_len, d, obj->d.tcp.A.mask_mask );
-      obj->d.tcp.claim_acc = syn_claim_fvec( syn, 6*obj->d.tcp.A.map_len,
-            6*obj->d.tcp.A.map_len, (double*)obj->d.tcp.fvec_acc.map_vec,
+      obj->d.tcp.claim_acc = syn_claim_fvec( syn, 6*obj->d.tcp.fvec_acc.map_len,
+            6*obj->d.tcp.fvec_acc.map_len, (double*)obj->d.tcp.fvec_acc.map_vec,
             "TCP Acc" );
    }
 	free(d);
@@ -2101,7 +2100,9 @@ int syn_finalize( synthesis_t *syn )
    kin_joint_t *kj;
    for (i=0; i<syn->njoints; i++) {
       kj = syn->joints[i];
-      assert( kj->pos.nvalues == syn->L-1 );
+      assert( kj->pos.values.map_len == syn->L-1 );
+      assert( kj->vel.values.map_len <= kj->pos.values.map_len+1 );
+      assert( kj->acc.values.map_len <= kj->vel.values.map_len );
 #if 0
       /* Do not actually use because the boundries can be outstepped by the solver,
        * so this would cause it to assert and to fail when the kinematic structure

@@ -76,9 +76,9 @@ typedef struct kin_joint_s {
    plucker_t S_ub;   /**< Plucker upper bound. */
 
    /* Current data. */
-   kin_joint_data_t pos; /**< Position data. */
-   kin_joint_data_t vel; /**< Velocity data. */
-   kin_joint_data_t acc; /**< Acceleration data. */
+   kin_joint_data_t pos; /**< Position data, has to be L-1 frames. */
+   kin_joint_data_t vel; /**< Velocity data, < pos frames. */
+   kin_joint_data_t acc; /**< Acceleration data, < vel frames. */
    plucker_t S_cur;  /**< Current joint position, used for calculating. */
    double cond[2];   /**< Stores the plucker conditions. */
 
@@ -88,7 +88,7 @@ typedef struct kin_joint_s {
    kin_claim_t *claim_const; /**< Constraint offset. */
 
    /* Temporary data. */
-   double   pos_cur; /**< Used to calculate forward kinematics. */
+   double pos_cur;   /**< Used to calculate forward kinematics. */
 } kin_joint_t;
 
 
