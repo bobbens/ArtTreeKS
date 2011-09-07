@@ -116,7 +116,7 @@ typedef struct kin_chain_data_s {
  * @brief Data for a tool center point (TCP).
  */
 typedef struct kin_tcp_data_s {
-   /* Data itself. */
+   /* Data itself, this is generally static if performaning kinematic synthesis. */
    dq_t *P;    /**< Poses, the first is absolute (G), the rest are actually relative transformations.
                     To convert to absolute multiply by the first (G). */
    int  nP;    /**< Number of poses to calculate for. */
@@ -124,6 +124,8 @@ typedef struct kin_tcp_data_s {
    mm_vec_t A; /**< Acceleration information. */
    int constant; /**< Whether or not the TCP changes. */
 
+   /* The function vectors, these are updated to calculate the error and perform
+    * kinematic synthesis. */
    dq_t *fvec_pos; /**< Position coordinate variables. */
    mm_vec_t fvec_vel; /**< Velocity coordinate variables. */
    mm_vec_t fvec_acc; /**< Acceleration coordinate values. */

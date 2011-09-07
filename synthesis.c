@@ -126,6 +126,7 @@ static int syn_construct_branches_walk( synthesis_t *syn, kin_branch_iter_t *bra
    if ((b->tcp->d.tcp.claim_acc != NULL) &&
          (b->tcp->d.tcp.claim_vel == NULL))
       assert( "Velocity data can't be NULL if acceleration data is not NULL." );
+   /* Make sure accelerations have velocities. */
    for (k=0; k < b->tcp->d.tcp.nP; k++) {
       if (((b->tcp->d.tcp.A.mask_mask == NULL) ||
                (b->tcp->d.tcp.A.mask_mask[k] != 0)) &&
@@ -329,7 +330,7 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
    int i, k, m;
    dq_t T, R;
    kin_joint_t *j, *jk;
-   double p[3] = { 0., 0., 0. };
+   const double p[3] = { 0., 0., 0. };
 
    /* Branch must make sense. */
    assert( syn->branches != NULL );
@@ -351,11 +352,15 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
    }
 
    /* Calculate all the frame data.
-    * This is tricky because we have L-1 positions and L velocities/accelerations.
+    * 
+    * Each frame is just a snapshot of the instantaneous kinematics.
+    *
+    * This is tricky because we have L-1 positions and up to L  velocities/accelerations.
     * So we handle them all at the same time, however we don't process the position
     * 0 which corresponds to the reference system.
     */
    for (m=0; m<syn->L; m++) {
+      //printf("START FRAME %d\n", m);
       if (m != 0) {
          dq_cr_point( T, p ); /* Create identity dual quaternion. */
 
@@ -385,11 +390,11 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
          dq_op_sub( branch->tcp->d.tcp.fvec_pos[m-1], T, branch->tcp->d.tcp.P[m] );
       }
 
+
       /* Update velocities. */
       if ((branch->tcp->d.tcp.claim_vel != NULL) &&
-            ((branch->tcp->d.tcp.V.mask_mask == NULL) ||
-             ((branch->tcp->d.tcp.V.mask_len > m) &&
-              (branch->tcp->d.tcp.V.mask_mask[m] != 0)))) {
+            (branch->tcp->d.tcp.V.mask_len > m) &&
+            (branch->tcp->d.tcp.V.mask_mask[m])) {
          /* Initialize result. */
          plucker_t v;
 		   plucker_t *d, *V;
@@ -407,13 +412,23 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
 			d = (plucker_t*) branch->tcp->d.tcp.fvec_vel.mask_vec;
 			V = (plucker_t*) branch->tcp->d.tcp.V.mask_vec;
          plucker_sub( &d[m], &v, &V[m] );
+
+         for (i=0; i<branch->njoints; i++) {
+            j = branch->joints[i];
+            d = &j->S_cur;
+           // double *dv = (double*) j->vel.values.mask_vec;
+            //printf( "joint [%d, %d] => %f => %f, %f, %f, %f, %f, %f [%f]\n",
+            //      i, m, dv[m], d->s[0], d->s[1], d->s[2], d->s0[0], d->s0[1], d->s0[2], ((double*) j->pos.values.mask_vec)[m-1] );
+         }
+			d = &v;
+         //printf( "vel [%d] => %f, %f, %f, %f, %f, %f\n",
+         //      m, d->s[0], d->s[1], d->s[2], d->s0[0], d->s0[1], d->s0[2] );
       }
 
       /* Update accelerations. */
       if ((branch->tcp->d.tcp.claim_acc != NULL) &&
-            ((branch->tcp->d.tcp.A.mask_mask == NULL) ||
-             ((branch->tcp->d.tcp.A.mask_len > m) &&
-              (branch->tcp->d.tcp.A.mask_mask[m] != 0)))) {
+            (branch->tcp->d.tcp.A.mask_len > m) &&
+            (branch->tcp->d.tcp.A.mask_mask[m] != 0)) {
          /* Initialize result. */
          plucker_t a;
 		   plucker_t *d, *A;
@@ -635,7 +650,7 @@ int kin_joint_claim( synthesis_t *syn, kin_joint_t *joint )
    assert( joint->claim_const == NULL );
    assert( syn->L > 0 );
    assert( joint->pos.values.map_len == syn->L-1 );
-   assert( joint->vel.values.map_len <= joint->pos.values.map_len );
+   assert( joint->vel.values.map_len <= joint->pos.values.map_len+1 ); /* Have to account that pos contains relative transformations. */
    assert( joint->acc.values.map_len <= joint->vel.values.map_len );
 
    /* Claim the data. */
@@ -728,7 +743,7 @@ void kin_joint_setPositions( kin_joint_t *joint, double *x, int len )
  */
 void kin_joint_setVelocities( kin_joint_t *joint, double *v, int len, const int *mask )
 {
-   kin_joint_data_set( &joint->vel, v, len, -M_PI, M_PI, mask );
+   kin_joint_data_set( &joint->vel, v, len, -10.*M_PI, 10.*M_PI, mask );
 }
 
 
@@ -740,7 +755,7 @@ void kin_joint_setVelocities( kin_joint_t *joint, double *v, int len, const int 
  */
 void kin_joint_setAccelerations( kin_joint_t *joint, double *a, int len, const int *mask )
 {
-   kin_joint_data_set( &joint->acc, a, len, -M_PI, M_PI, mask );
+   kin_joint_data_set( &joint->acc, a, len, -10.*M_PI, 10.*M_PI, mask );
 }
 
 
@@ -1918,6 +1933,7 @@ static kin_claim_t* syn_claim_add( kin_claim_t *claim,
 #else /* NDEBUG */
    n->name  = name;
 #endif /* NDEBUG */
+   //printf( "Claim '%s' => %d / %d\n", name, indep, len );
 
    return n;
 }
@@ -2438,12 +2454,15 @@ void syn_printfDetail( FILE* stream, const synthesis_t *syn )
          mm_updateMask( &kj->acc.values );
 
          /* Print all the joints for the branch. */
-         for (k=0; k<kj->pos.values.mask_len; k++) {
+         for (k=0; k<kj->pos.values.mask_len+1; k++) {
             fprintf( stream, "         " );
 
             /* Position. */
-            fprintf( stream, " [%02d] %+.3e",
-                  k, ((double*) kj->pos.values.mask_vec)[k] );
+            if (k==0)
+               fprintf( stream, " [HH] ----------" );
+            else
+               fprintf( stream, " [%02d] %+.3e",
+                     k, ((double*) kj->pos.values.mask_vec)[k-1] );
 
             /* Velocity. */
             if ((k < kj->vel.values.mask_len) && (kj->vel.values.mask_mask[k]))
