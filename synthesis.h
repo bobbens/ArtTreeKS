@@ -355,6 +355,8 @@ void syn_print( const synthesis_t *syn );
 void syn_printf( FILE* stream, const synthesis_t *syn );
 void syn_printDetail( const synthesis_t *syn );
 void syn_printfDetail( FILE* stream, const synthesis_t *syn );
+void syn_printClaim( const synthesis_t *syn );
+void syn_printfClaim( FILE* stream, const synthesis_t *syn );
 
 
 #endif /* _SYNTHESIS_H */

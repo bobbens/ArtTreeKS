@@ -327,14 +327,21 @@ static void plucker_sub( plucker_t *o, const plucker_t *p, const plucker_t *q )
  */
 int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
 {
-   int i, k, m;
-   dq_t T, R;
-   kin_joint_t *j, *jk;
+   int i, m;
+   dq_t T, R, S;
+   kin_joint_t *j;
+   plucker_t *pd, *pV;
+   plucker_t pa, *pA;
+   double *d;
+   kin_tcp_data_t *tcp;
    const double p[3] = { 0., 0., 0. };
 
    /* Branch must make sense. */
    assert( syn->branches != NULL );
    assert( branch->joints != NULL );
+
+   /* Shortcut. */
+   tcp = &branch->tcp->d.tcp;
 
    /* Calculate plucker conditions for all the joints, we explicitly use them as equations. */
    for (i=0; i<branch->njoints; i++) {
@@ -346,6 +353,17 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
       mm_updateMask( &j->pos.values );
       mm_updateMask( &j->vel.values );
       mm_updateMask( &j->acc.values );
+
+      /*
+      int k;
+      printf( "joint %d => ", i );
+      for (k=0; k<j->pos.values.mask_len; k++)
+         printf( "[ %f ] ", ((double*)j->pos.values.mask_vec)[k] );
+      printf( "\n            " );
+      for (k=0; k<j->vel.values.mask_len; k++)
+         printf( "[ %f ] ", ((double*)j->vel.values.mask_vec)[k] );
+      printf( "\n" );
+      */
 
       /* Initialize joint position to initial position. */
       memcpy( &j->S_cur, &j->S, sizeof(plucker_t) );
@@ -366,8 +384,6 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
 
          /* Concatenate relative displacements around axes. */
          for (i=0; i<branch->njoints; i++) {
-            dq_t S;
-            double *d;
             j = branch->joints[i];
 
             /* Store current joint position. */
@@ -387,66 +403,71 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
             dq_op_sign( T, T );
 
          /* Store in fvec: T-P. */
-         dq_op_sub( branch->tcp->d.tcp.fvec_pos[m-1], T, branch->tcp->d.tcp.P[m] );
+         dq_op_sub( tcp->fvec_pos[m-1], T, tcp->P[m] );
       }
 
-
       /* Update velocities. */
-      if ((branch->tcp->d.tcp.claim_vel != NULL) &&
-            (branch->tcp->d.tcp.V.mask_len > m) &&
-            (branch->tcp->d.tcp.V.mask_mask[m])) {
+      if ((tcp->claim_vel != NULL) &&
+            (tcp->V.mask_len > m) &&
+            (tcp->V.mask_mask[m])) {
+			pd = &((plucker_t*) tcp->fvec_vel.mask_vec)[m]; /* Result. */
          /* Initialize result. */
-         plucker_t v;
-		   plucker_t *d, *V;
-         plucker_zero( &v );
+         plucker_zero( pd );
          /* Straight forward:
           *    v = \sum v_i S_i
           */
          for (i=0; i<branch->njoints; i++) {
-            double *dv;
             j = branch->joints[i];
-            dv = (double*) j->vel.values.mask_vec;
-            lie_joint_mac( &v, dv[m], &j->S_cur );
+            d = (double*) j->vel.values.mask_vec;
+            lie_joint_mac( pd, d[m], &j->S_cur );
+
+            /*
+            printf( "joint [%d] => %.3e => %f, %f, %f, %f, %f, %f\n",
+                  i, d[m],
+                  j->S_cur.s[0], j->S_cur.s[1], j->S_cur.s[2],
+                  j->S_cur.s0[0], j->S_cur.s0[1], j->S_cur.s0[2] );
+            */
          }
          /* Copy result. */
-			d = (plucker_t*) branch->tcp->d.tcp.fvec_vel.mask_vec; /* Result. */
-			V = (plucker_t*) branch->tcp->d.tcp.V.mask_vec; /* Static data. */
-         plucker_sub( &d[m], &v, &V[m] );
+			pV = &((plucker_t*) tcp->V.mask_vec)[m]; /* Static data. */
+         plucker_sub( pd, pd, pV );
 
+         /*
          for (i=0; i<branch->njoints; i++) {
             j = branch->joints[i];
             d = &j->S_cur;
-           // double *dv = (double*) j->vel.values.mask_vec;
-            //printf( "joint [%d, %d] => %f => %f, %f, %f, %f, %f, %f [%f]\n",
-            //      i, m, dv[m], d->s[0], d->s[1], d->s[2], d->s0[0], d->s0[1], d->s0[2], ((double*) j->pos.values.mask_vec)[m-1] );
+            double *dv = (double*) j->vel.values.mask_vec;
+            printf( "joint [%d, %d] => %f => %f, %f, %f, %f, %f, %f [%f]\n",
+                  i, m, dv[m], d->s[0], d->s[1], d->s[2], d->s0[0], d->s0[1], d->s0[2], ((double*) j->pos.values.mask_vec)[m-1] );
          }
 			d = &v;
-         //printf( "vel [%d] => %f, %f, %f, %f, %f, %f\n",
-         //      m, d->s[0], d->s[1], d->s[2], d->s0[0], d->s0[1], d->s0[2] );
+         printf( "vel [%d] => %f, %f, %f, %f, %f, %f\n",
+               m, d->s[0], d->s[1], d->s[2], d->s0[0], d->s0[1], d->s0[2] );
+         */
       }
+
 
       /* Update accelerations. */
       if ((branch->tcp->d.tcp.claim_acc != NULL) &&
             (branch->tcp->d.tcp.A.mask_len > m) &&
             (branch->tcp->d.tcp.A.mask_mask[m] != 0)) {
+         int k;
+         kin_joint_t *jk;
+
          /* Initialize result. */
-         plucker_t a;
-		   plucker_t *d, *A;
-         plucker_zero( &a );
+         plucker_zero( &pa );
          /* Straight forward sum part:
           *    a_1 = \sum a_i S_i
           */
          for (i=0; i<branch->njoints; i++) {
-            double *dv;
             j = branch->joints[i];
-            dv = (double*) j->acc.values.mask_vec;
-            lie_joint_mac( &a, dv[m], &j->S_cur );
+            d = (double*) j->acc.values.mask_vec;
+            lie_joint_mac( &pa, d[m], &j->S_cur );
          }
          /* More complex coriolis part.
           *    a_2 = \sum a_i \sum a_k [s_i, s_k]
           */
          for (i=0; i<branch->njoints-1; i++) {
-            double *dv;
             plucker_t acc;
             j = branch->joints[i];
 
@@ -455,22 +476,22 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
                plucker_t br;
                jk = branch->joints[k];
                lie_joint_bracket( &br, &j->S_cur, &jk->S_cur );
-               dv = (double*) jk->vel.values.mask_vec;
-               lie_joint_mac( &acc, dv[m], &br );
+               d = (double*) jk->vel.values.mask_vec;
+               lie_joint_mac( &acc, d[m], &br );
             }
-            dv = (double*) j->vel.values.mask_vec;
-            lie_joint_mac( &a, dv[m], &acc );
+            d = (double*) j->vel.values.mask_vec;
+            lie_joint_mac( &pa, d[m], &acc );
          }
          /* Copy result. */
-			d = (plucker_t*) branch->tcp->d.tcp.fvec_acc.mask_vec;
-			A = (plucker_t*) branch->tcp->d.tcp.A.mask_vec;
-         plucker_sub( &d[m], &a, &A[m] );
+			pd = (plucker_t*) branch->tcp->d.tcp.fvec_acc.mask_vec;
+			pA = (plucker_t*) branch->tcp->d.tcp.A.mask_vec;
+         plucker_sub( &pd[m], &pa, &pA[m] );
       }
    }
 
    /* Convert back to map layout for the solver. */
-   mm_updateMap( &branch->tcp->d.tcp.fvec_vel );
-   mm_updateMap( &branch->tcp->d.tcp.fvec_acc );
+   mm_updateMap( &tcp->fvec_vel );
+   mm_updateMap( &tcp->fvec_acc );
 
    return 0;
 }
@@ -2130,6 +2151,35 @@ int syn_finalize( synthesis_t *syn )
    return 0;
 }
 
+void syn_printClaim( const synthesis_t *syn )
+{
+   syn_printfClaim( stdout, syn );
+}
+
+void syn_printfClaim( FILE* stream, const synthesis_t *syn )
+{
+   int i;
+   kin_claim_t *l;
+
+   fprintf( stream, "   ---X------\n" );
+   for (l=syn->claim_x; l!=NULL; l=l->next) {
+      fprintf( stream, "   %02lu-%02lu [%02lu]: %-20s",
+            l->offset, l->offset+l->size-1, l->indep, l->name );
+      for (i=0; i<(int)l->size; i++)
+         fprintf( stream, " %+.3e ", l->dat[i] );
+      fprintf( stream, "\n" );
+   }
+   fprintf( stream, "   ---FVEC---\n" );
+   for (l=syn->claim_fvec; l!=NULL; l=l->next) {
+      fprintf( stream, "   %02lu-%02lu [%02lu]: %-20s",
+            l->offset, l->offset+l->size-1, l->indep, l->name );
+      for (i=0; i<(int)l->size; i++)
+         fprintf( stream, " %+.3e ", l->dat[i] );
+      fprintf( stream, "\n" );
+   }
+   fprintf( stream, "   ----------\n" );
+}
+
 
 /**
  * @brief Resets the finalized state of the synthesis object.
@@ -2437,9 +2487,13 @@ void syn_printfDetail( FILE* stream, const synthesis_t *syn )
    int i, j, k;
    double *t, *t0, err;
    kin_joint_t *kj;
+   kin_tcp_data_t *tcp;
+   plucker_t *p;
 
    for (i=0; i<syn->nbranches; i++) {
       fprintf( stream, "   [%d]: %d\n", i, syn->branches[i].njoints );
+
+      /* Display variables. */
       for (j=0; j<syn->branches[i].njoints; j++) {
 
          /* Display the joint axes. */
@@ -2476,6 +2530,32 @@ void syn_printfDetail( FILE* stream, const synthesis_t *syn )
                      k, ((double*) kj->acc.values.mask_vec)[k] );
 
             fprintf( stream, "\n" );
+         }
+      }
+
+      /* Display functions. */
+      /* Print all the joints for the branch. */
+      tcp = &syn->branches[i].tcp->d.tcp;
+      for (k=0; k<syn->L; k++) {
+
+         /* Position. */
+         if (k!=0) {
+            fprintf( stream, "      Pos %02d: ", k );
+            dq_print( tcp->fvec_pos[k-1] );
+         }
+
+         /* Velocity. */
+         if ((k < tcp->fvec_vel.mask_len) && (tcp->fvec_vel.mask_mask[k])) {
+            p = &((plucker_t*) tcp->fvec_vel.mask_vec)[k];
+            fprintf( stream, "      Vel %02d: %+.3e, %+.3e, %+.3e, %+.3e, %+.3e, %+.3e\n",
+                  k, p->s[0], p->s[1], p->s[2], p->s0[0], p->s0[1], p->s0[2] );
+         }
+
+         /* Acceleration. */
+         if ((k < tcp->fvec_acc.mask_len) && (tcp->fvec_acc.mask_mask[k])) {
+            p = &((plucker_t*) tcp->fvec_acc.mask_vec)[k];
+            fprintf( stream, "      Acc %02d: %+.3e, %+.3e, %+.3e, %+.3e, %+.3e, %+.3e\n",
+                  k, p->s[0], p->s[1], p->s[2], p->s0[0], p->s0[1], p->s0[2] );
          }
       }
    }

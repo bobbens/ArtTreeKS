@@ -168,8 +168,8 @@ static const char* mm_compare( const mm_vec_t *mma, const mm_vec_t *mmb )
 
 int main (void)
 {
-   double *d, map_vec[6] = { 1., 2., 3., 5., 4., 6. };
-   int map_map[6]        = { 1,  3,  5,  9,  7, 11  };
+   double *d, map_vec[6] = { 1., 2., 3., 4., 5., 6. };
+   int map_map[6]        = { 1,  3,  5,  7,  9, 11  };
    double mask_vec[12]   = { 0., 1., 0., 2., 0., 3., 0., 4., 0., 5., 0., 6. };
    int mask_mask[12]     = { 0,  1,  0,  1,  0,  1,  0,  1,  0,  1,  0,  1  };
    mm_vec_t mma, mmb;
