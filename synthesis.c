@@ -933,14 +933,14 @@ static void kin_obj_chain_save_pos( char *str, char *str_lb, char *str_ub, int m
    p_lb  = 0;
    p_ub  = 0;
    for (j=0; j<data->nvalues; j++) {
-      tail = (j!=data->nvalues-1) ? "," : "";
+      tail = (j != data->nvalues-1) ? "," : "";
       if (data->values.mask_mask[j]) {
          p    += snprintf( &str[p], max - p,
-               PF"%s ", ((double*)data->values.mask_vec)[j],    tail );
+               PF"%s ", ((double*) data->values.mask_vec)[j],    tail );
          p_lb += snprintf( &str_lb[p_lb], max - p_lb,
-               PF"%s ", ((double*)data->values_lb.mask_vec)[j], tail );
+               PF"%s ", ((double*) data->values_lb.mask_vec)[j], tail );
          p_ub += snprintf( &str_ub[p_ub], max - p_ub,
-               PF"%s ", ((double*)data->values_ub.mask_vec)[j], tail );
+               PF"%s ", ((double*) data->values_ub.mask_vec)[j], tail );
       }
       else {
          p    += snprintf( &str[p],       max - p,    "nil%s ", tail );
@@ -995,7 +995,7 @@ static int kin_obj_chain_save( const kin_object_t *obj, FILE *stream, const char
          fprintf( stream,
                "   j:setAccelerations( { %s }, %d )\n"
                "   j:setAccelerationBounds( { %s },\n"
-               "                        { %s } )\n",
+               "                            { %s } )\n",
                pos_str, kj->acc.values.mask_len, pos_lb_str, pos_ub_str );
       }
 
@@ -2380,8 +2380,11 @@ void syn_printf( FILE* stream, const synthesis_t *syn )
 {
    int i, j;
    double *t, *t0, err;
+
+   /* Some system details. */
    fprintf( stream, "n=%d, m=%d, ni=%d, mi=%d\n",
          syn->n, syn->m, syn->ni, syn->mi );
+
    for (i=0; i<syn->nbranches; i++) {
       fprintf( stream, "   [%d]: %d\n", i, syn->branches[i].njoints );
       for (j=0; j<syn->branches[i].njoints; j++) {
@@ -2391,6 +2394,8 @@ void syn_printf( FILE* stream, const synthesis_t *syn )
                t[0], t[1], t[2], t0[0], t0[1], t0[2] );
       }
    }
+
+   /* Print the global error. */
    err = 0.;
    for (i=0; i<syn->m; i++)
       err += fabs( syn->fvec[i] );
@@ -2419,26 +2424,43 @@ void syn_printfDetail( FILE* stream, const synthesis_t *syn )
    for (i=0; i<syn->nbranches; i++) {
       fprintf( stream, "   [%d]: %d\n", i, syn->branches[i].njoints );
       for (j=0; j<syn->branches[i].njoints; j++) {
+
+         /* Display the joint axes. */
          kj = syn->branches[i].joints[j];
          t  = kj->S.s;
          t0 = kj->S.s0;
          fprintf( stream, "      %d:  [ %.3e, %.3e, %.3e ] x [ %.3e, %.3e, %.3e ] (%.3e)\n", j,
-               t[0], t[1], t[2], t0[0], t0[1], t0[2],
-               vec3_dot( t, t0 ) );
+               t[0], t[1], t[2], t0[0], t0[1], t0[2], vec3_dot( t, t0 ) );
+
+         /* Update the masks just in case. */
          mm_updateMask( &kj->pos.values );
          mm_updateMask( &kj->vel.values );
          mm_updateMask( &kj->acc.values );
+
+         /* Print all the joints for the branch. */
          for (k=0; k<kj->pos.values.mask_len; k++) {
             fprintf( stream, "         " );
-            fprintf( stream, " [%02d] %+.3e", k, ((double*)kj->pos.values.mask_vec)[k] );
+
+            /* Position. */
+            fprintf( stream, " [%02d] %+.3e",
+                  k, ((double*) kj->pos.values.mask_vec)[k] );
+
+            /* Velocity. */
             if ((k < kj->vel.values.mask_len) && (kj->vel.values.mask_mask[k]))
-               fprintf( stream, " [%02d] %+.3e", k, ((double*)kj->vel.values.mask_vec)[k] );
+               fprintf( stream, " [%02d] %+.3e",
+                     k, ((double*) kj->vel.values.mask_vec)[k] );
+
+            /* Acceleration. */
             if ((k < kj->acc.values.mask_len) && (kj->acc.values.mask_mask[k]))
-               fprintf( stream, " [%02d] %+.3e", k, ((double*)kj->acc.values.mask_vec)[k] );
+               fprintf( stream, " [%02d] %+.3e",
+                     k, ((double*) kj->acc.values.mask_vec)[k] );
+
             fprintf( stream, "\n" );
          }
       }
    }
+
+   /* Calculate and print error. */
    err = 0.;
    for (i=0; i<syn->m; i++)
       err += fabs( syn->fvec[i] );

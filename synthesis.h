@@ -88,7 +88,7 @@ typedef struct kin_joint_s {
    kin_claim_t *claim_const; /**< Constraint offset. */
 
    /* Temporary data. */
-   double   pos_cur; /**< Used when iterating. */
+   double   pos_cur; /**< Used to calculate forward kinematics. */
 } kin_joint_t;
 
 

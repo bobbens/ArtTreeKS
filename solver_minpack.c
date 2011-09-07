@@ -161,7 +161,7 @@ int syn_solve_minpack( synthesis_t *syn, const minpack_options_t *opts, minpack_
    ret = sminpack( minpack_eqns, (void*)syn, m, n, syn->x, syn->fvec, /* System definition. */
          ftol, xtol, gtol,          /* When convergence has been reached. */
          maxfev,                    /* Cycles. */
-         epsfcn, mode, factor, /* Strange stuff. */
+         epsfcn, mode, factor,      /* Strange stuff. */
          nprint, &nfev, &tstart, &tend ); /* Output information. */
 
    /* Store results. */
