@@ -1264,7 +1264,7 @@ int syn_solve_ga( synthesis_t *syn, ga_options_t *opts, ga_info_t *info )
       for (j=0; j<n; j++)
          vec[j] = pop[pc].entities[j].fitness;
       rand_stats( &mean, &stddev, &min, &max, vec, n );
-      LOG( v>0, "   seed best = %.3e, mean = %.3e, stddev = %.3e, range = [%.3e, %.3e]\n",
+      LOG( v>0, "   seed  best = %.3e, mean = %.3e, stddev = %.3e, range = [%.3e, %.3e]\n",
             pop[pc].entities[0].fitness, mean, stddev, min, max );
       free( vec );
    }
