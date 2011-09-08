@@ -354,17 +354,6 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
       mm_updateMask( &j->vel.values );
       mm_updateMask( &j->acc.values );
 
-      /*
-      int k;
-      printf( "joint %d => ", i );
-      for (k=0; k<j->pos.values.mask_len; k++)
-         printf( "[ %f ] ", ((double*)j->pos.values.mask_vec)[k] );
-      printf( "\n            " );
-      for (k=0; k<j->vel.values.mask_len; k++)
-         printf( "[ %f ] ", ((double*)j->vel.values.mask_vec)[k] );
-      printf( "\n" );
-      */
-
       /* Initialize joint position to initial position. */
       memcpy( &j->S_cur, &j->S, sizeof(plucker_t) );
    }
@@ -420,30 +409,10 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
             j = branch->joints[i];
             d = (double*) j->vel.values.mask_vec;
             lie_joint_mac( pd, d[m], &j->S_cur );
-
-            /*
-            printf( "joint [%d] => %.3e => %f, %f, %f, %f, %f, %f\n",
-                  i, d[m],
-                  j->S_cur.s[0], j->S_cur.s[1], j->S_cur.s[2],
-                  j->S_cur.s0[0], j->S_cur.s0[1], j->S_cur.s0[2] );
-            */
          }
          /* Copy result. */
 			pV = &((plucker_t*) tcp->V.mask_vec)[m]; /* Static data. */
          plucker_sub( pd, pd, pV );
-
-         /*
-         for (i=0; i<branch->njoints; i++) {
-            j = branch->joints[i];
-            d = &j->S_cur;
-            double *dv = (double*) j->vel.values.mask_vec;
-            printf( "joint [%d, %d] => %f => %f, %f, %f, %f, %f, %f [%f]\n",
-                  i, m, dv[m], d->s[0], d->s[1], d->s[2], d->s0[0], d->s0[1], d->s0[2], ((double*) j->pos.values.mask_vec)[m-1] );
-         }
-			d = &v;
-         printf( "vel [%d] => %f, %f, %f, %f, %f, %f\n",
-               m, d->s[0], d->s[1], d->s[2], d->s0[0], d->s0[1], d->s0[2] );
-         */
       }
 
 
@@ -465,7 +434,7 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
             lie_joint_mac( &pa, d[m], &j->S_cur );
          }
          /* More complex coriolis part.
-          *    a_2 = \sum a_i \sum a_k [s_i, s_k]
+          *    a_2 = \sum v_i \sum v_k [s_i, s_k]
           */
          for (i=0; i<branch->njoints-1; i++) {
             plucker_t acc;
