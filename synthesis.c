@@ -287,6 +287,8 @@ static void plucker_zero( plucker_t *p )
 
 /**
  * @brief Obtains the core screw element from the dual quaternion.
+ *    @param[out] p Screw element obtained from the dual quaternion.
+ *    @param[in] Q Dual quaternion to obtain screw element from.
  */
 static void plucker_from_dq( plucker_t *p, const dq_t Q )
 {
@@ -301,6 +303,9 @@ static void plucker_from_dq( plucker_t *p, const dq_t Q )
 
 /**
  * @brief Subtracts a plucker coordinate from another.
+ *    @param[out] o Output plucker coordinate.
+ *    @param[in] p Input plucker coordinate to subtract from.
+ *    @param[in] q Input plucker coordinate to subtract.
  */
 static void plucker_sub( plucker_t *o, const plucker_t *p, const plucker_t *q )
 {
@@ -924,6 +929,9 @@ static int kin_obj_chain_fin( kin_object_t *obj, synthesis_t *syn )
 }
 
 
+/**
+ * @brief Generates strings to save data from joint information.
+ */
 static void kin_obj_chain_save_pos( char *str, char *str_lb, char *str_ub, int max,
       const kin_joint_data_t *data )
 {
@@ -1121,6 +1129,10 @@ static int kin_obj_split_free( kin_object_t *obj )
    free( obj->d.split.objs );
    return 0;
 } 
+
+/**
+ * @brief Helper funtion to save derivative information of an end-effector.
+ */
 static int kin_obj_tcp_save_derivative( const mm_vec_t *der, FILE *stream )
 {
    int i;
@@ -1141,6 +1153,9 @@ static int kin_obj_tcp_save_derivative( const mm_vec_t *der, FILE *stream )
    fprintf( stream,       "          }, %d )\n", der->mask_len );
    return 0;
 }
+/**
+ * @brief Saves an end-effector or tool center point.
+ */
 static int kin_obj_tcp_save( const kin_object_t *obj, FILE *stream, const char *self )
 {
    int i;
@@ -2120,11 +2135,21 @@ int syn_finalize( synthesis_t *syn )
    return 0;
 }
 
+
+/**
+ * @brief Prints the full claim information of a synthesis to stdout.
+ *    @param syn Synthesis to print claims of.
+ */
 void syn_printClaim( const synthesis_t *syn )
 {
    syn_printfClaim( stdout, syn );
 }
 
+/**
+ * @brief Prints the full claim information of a synthesis to a stream.
+ *    @param stream Stream to print out.
+ *    @param syn Synthesis to print claims of.
+ */
 void syn_printfClaim( FILE* stream, const synthesis_t *syn )
 {
    int i;
@@ -2149,11 +2174,22 @@ void syn_printfClaim( FILE* stream, const synthesis_t *syn )
    fprintf( stream, "   ----------\n" );
 }
 
+/**
+ * @brief Prints the Jacobian of a synthesis object at the current position through stdout.
+ *    @param syn Synthesis to print Jacobian of.
+ *    @param step Step to calculate Jacobian by forward-differenciation.
+ */
 void syn_printJacobian( synthesis_t *syn, const double step )
 {
    syn_printfJacobian( stdout, syn, step );
 }
 
+/**
+ * @brief Prints the Jacobian of a synthesis object at the current position.
+ *    @param stream Stream to print out.
+ *    @param syn Synthesis to print Jacobian of.
+ *    @param step Step to calculate Jacobian by forward-differenciation.
+ */
 void syn_printfJacobian( FILE *stream, synthesis_t *syn, const double step )
 {
    int i, r, c;
@@ -2211,6 +2247,7 @@ void syn_printfJacobian( FILE *stream, synthesis_t *syn, const double step )
 
 /**
  * @brief Resets the finalized state of the synthesis object.
+ *    @param syn Synthesis object to reset.
  */
 int syn_reset( synthesis_t *syn )
 {
