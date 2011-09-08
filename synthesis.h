@@ -357,6 +357,8 @@ void syn_printDetail( const synthesis_t *syn );
 void syn_printfDetail( FILE* stream, const synthesis_t *syn );
 void syn_printClaim( const synthesis_t *syn );
 void syn_printfClaim( FILE* stream, const synthesis_t *syn );
+void syn_printJacobian( synthesis_t *syn, const double step );
+void syn_printfJacobian( FILE *stream, synthesis_t *syn, const double step );
 
 
 #endif /* _SYNTHESIS_H */

@@ -117,6 +117,7 @@ static int synL_solve_cmaes( lua_State *L );
 static int synL_solve_ga( lua_State *L );
 static int synL_print( lua_State *L );
 static int synL_printClaim( lua_State *L );
+static int synL_printJacobian( lua_State *L );
 static int synL_save( lua_State *L );
 static int synL_raw_x( lua_State *L );
 static int synL_raw_fvec( lua_State *L );
@@ -141,6 +142,7 @@ static const luaL_reg synL_methods[] = {
    { "solver_cmaes", synL_solve_cmaes },
    { "print", synL_print },
    { "printClaim", synL_printClaim },
+   { "printJacobian", synL_printJacobian },
    { "save", synL_save },
    { "raw_x", synL_raw_x },
    { "raw_fvec", synL_raw_fvec },
@@ -947,6 +949,15 @@ static int synL_printClaim( lua_State *L )
    syn_printClaim( syn );
    return 0;
 }
+
+static int synL_printJacobian( lua_State *L )
+{
+   synthesis_t *syn = luaL_checksyn(L,1);
+   double step = luaL_checknumber(L,2);
+   syn_printJacobian( syn, step );
+   return 0;
+}
+
 
 static int synL_save( lua_State *L )
 {

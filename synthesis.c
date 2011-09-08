@@ -245,12 +245,12 @@ static int syn_branch_iter_walk( synthesis_t *syn,
 static void lie_joint_mac( plucker_t *dest,
       double val, const plucker_t *src )
 {
-   dest->s[0]  = val * src->s[0];
-   dest->s[1]  = val * src->s[1];
-   dest->s[2]  = val * src->s[2];
-   dest->s0[0] = val * src->s0[0];
-   dest->s0[1] = val * src->s0[1];
-   dest->s0[2] = val * src->s0[2];
+   dest->s[0]  += val * src->s[0];
+   dest->s[1]  += val * src->s[1];
+   dest->s[2]  += val * src->s[2];
+   dest->s0[0] += val * src->s0[0];
+   dest->s0[1] += val * src->s0[1];
+   dest->s0[2] += val * src->s0[2];
 }
 
 
@@ -2178,6 +2178,65 @@ void syn_printfClaim( FILE* stream, const synthesis_t *syn )
       fprintf( stream, "\n" );
    }
    fprintf( stream, "   ----------\n" );
+}
+
+void syn_printJacobian( synthesis_t *syn, const double step )
+{
+   syn_printfJacobian( stdout, syn, step );
+}
+
+void syn_printfJacobian( FILE *stream, synthesis_t *syn, const double step )
+{
+   int i, r, c;
+   double *x, *fvec, *fref, *J;
+
+   /* Allocate buffers. */
+   x    = memdup( syn->x, syn->n * sizeof(double) );
+   fref = memmalloc( syn->m * sizeof(double) );
+   fvec = memcalloc( syn->m, sizeof(double) );
+   J    = memcalloc( syn->m, sizeof(double) );
+
+   /* Set up. */
+   syn_map_to_fvec( syn, NULL, NULL, fref );
+   fprintf( stream, "---JACOBIAN---\n" );
+   fprintf( stream, "    " );
+   for (i=0; i<syn->m; i++)
+      fprintf( stream, "     %03d   ", i );
+   fprintf( stream, "\n" );
+   fprintf( stream, "   +" );
+   for (i=0; i<syn->m; i++)
+      fprintf( stream, "-----------" );
+   fprintf( stream, "\n" );
+
+   /* Calculate jacobian. */
+   for (r=0; r<syn->n; r++) {
+      /* Tweak the values a bit. */
+      memcpy( x, syn->x, sizeof(double)*syn->n );
+      x[r] += step;
+
+      /* Update with new X vector. */
+      syn_map_from_x( syn, x, syn->n );
+      for (i=0; i<syn->nbranches; i++)
+         syn_calc_branch( syn, &syn->branches[i] );
+      syn_map_to_fvec( syn, NULL, NULL, fvec );
+
+      /* Display. */
+      fprintf( stream, "%02d |", r );
+      for (c=0; c<syn->m; c++) {
+         if (fabs(fvec[c]-fref[c]) < DQ_PRECISION)
+            fprintf( stream, "     ---   " );
+         else
+            fprintf( stream, " %+.3e", fvec[c]-fref[c] );
+      }
+      fprintf( stream, "\n" );
+   }
+
+   /* Finishing touches. */
+   memcpy( syn->x, x, sizeof(double)*syn->n );
+   fprintf( stream, "--------------\n" );
+   free( fvec );
+   free( J );
+   free( x );
 }
 
 

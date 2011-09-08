@@ -42,17 +42,6 @@ static int minpack_eqns( void *p, int m, int n,
    /* Map back. */
    syn_map_to_fvec( syn, NULL, NULL, fvec );
 
-
-   /*
-   printf("x:");
-   for (i=0; i<n; i++)
-      printf("   %+.3e", x[i] );
-   printf("\nf:");
-   for (i=0; i<m; i++)
-      printf("   %+.3e", fvec[i] );
-   printf("\n");
-   */
-
    return 0;
 }
 
