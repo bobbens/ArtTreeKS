@@ -22,11 +22,11 @@ function rand_vel ()
 end
 
 -- Generate robot
-n  = {3,3,3,3}
+n  = {3,2,2,2}
 b  = #n-1
 mp = 3
-mv = 3
-ma = 3
+mv = 2
+ma = 0
 P  = {}
 for i=1,mp do P[i] = {} for j=1,b do P[i][j] = rand_G() end end
 if mv > 0 then
