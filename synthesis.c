@@ -1143,7 +1143,7 @@ static int kin_obj_tcp_save_derivative( const mm_vec_t *der, FILE *stream )
       fprintf( stream, "       -- Frame %d\n", i );
       tail = (i==der->mask_len-1) ? "" : ",";
       if (der->mask_mask[i]) {
-         p = (plucker_t*) der->mask_vec;
+         p = &((plucker_t*) der->mask_vec)[i];
          fprintf( stream, "       { "PF", "PF", "PF", "PF", "PF", "PF" }%s\n",
                p->s[0], p->s[1], p->s[2], p->s0[0], p->s0[1], p->s0[2], tail );
       }
