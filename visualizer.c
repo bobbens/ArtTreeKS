@@ -315,6 +315,7 @@ static int vis_updateData( GLfloat *data, GLfloat *col, const synthesis_t *syn,
    const double pz[3] = { 0., 0., 0. };
    kin_branch_t *br;
    kin_joint_t *kj;
+   GLfloat mod;
 
    /* Copy angles. */
    if (angles != NULL)
@@ -383,11 +384,14 @@ static int vis_updateData( GLfloat *data, GLfloat *col, const synthesis_t *syn,
          /* Create axis. */
          memcpy( o, prop, sizeof(double)*3 );
          memcpy( a, o,    sizeof(double)*3 );
-         a[0] += s[0]/2.;
-         a[1] += s[1]/2.;
-         a[2] += s[2]/2.;
+         mod = line_width/2.;
+         a[0] += s[0]/2. * mod;
+         a[1] += s[1]/2. * mod;
+         a[2] += s[2]/2. * mod;
          fcopy( &data[3*(p++)], a );
-         vec3_sub( a, a, s );
+         a[0] -= s[0] * mod;
+         a[1] -= s[1] * mod;
+         a[2] -= s[2] * mod;
          fcopy( &data[3*(p++)], a );
 
          /* Colour. */
@@ -412,16 +416,17 @@ static int vis_updateData( GLfloat *data, GLfloat *col, const synthesis_t *syn,
          dq_cr_copy( syn_P[i], P );
 
       /* Null point. */
+      mod = line_width/2.;
       for (k=0; k<3; k++)
-         a[k] = o[k] + M[k][0]/3.;
+         a[k] = o[k] + M[k][0]/3.*mod;
       fcopy( &data[3*(p++)], o );
       fcopy( &data[3*(p++)], a );
       for (k=0; k<3; k++)
-         a[k] = o[k] + M[k][1]/3.;
+         a[k] = o[k] + M[k][1]/3.*mod;
       fcopy( &data[3*(p++)], o );
       fcopy( &data[3*(p++)], a );
       for (k=0; k<3; k++)
-         a[k] = o[k] + M[k][2]/3.;
+         a[k] = o[k] + M[k][2]/3.*mod;
       fcopy( &data[3*(p++)], o );
       fcopy( &data[3*(p++)], a );
 
@@ -738,13 +743,19 @@ int visualize( const synthesis_t *syn_a_in, const synthesis_t *syn_b_in )
             }
             else if (evt.key.keysym.sym == SDLK_s)
                gl_screenshot( "out.png" );
-            else if (evt.key.keysym.sym == SDLK_PLUS) {
+            else if (evt.key.keysym.sym == SDLK_KP_PLUS) {
                line_width += 1.0f;
                glLineWidth( line_width );
+               vis_updateData( vdata, NULL, syn, col, cola, cur_frame, state, syn_P, NULL );
+               if (syn_b != NULL)
+                  vis_updateDataFrom( syn_b, angles_cmp, syn_P, cur_frame, state );
             }
-            else if (evt.key.keysym.sym == SDLK_MINUS) {
-               line_width -= 1.0f;
+            else if (evt.key.keysym.sym == SDLK_KP_MINUS) {
+               line_width = MAX( 1.0f, line_width-1.0f );
                glLineWidth( line_width );
+               vis_updateData( vdata, NULL, syn, col, cola, cur_frame, state, syn_P, NULL );
+               if (syn_b != NULL)
+                  vis_updateDataFrom( syn_b, angles_cmp, syn_P, cur_frame, state );
             }
          }
          else if (evt.type == SDL_KEYUP) {
