@@ -60,6 +60,7 @@ static double vis_up[3] = { 0., 0., 1. };
 static int vis_width     = 800;
 static int vis_height    = 600;
 static GLfloat line_width = 3.;
+static GLfloat axis_mod   = 1./3.;
 
 
 static const double motion_k    = 0.5;
@@ -384,7 +385,7 @@ static int vis_updateData( GLfloat *data, GLfloat *col, const synthesis_t *syn,
          /* Create axis. */
          memcpy( o, prop, sizeof(double)*3 );
          memcpy( a, o,    sizeof(double)*3 );
-         mod = line_width/2.;
+         mod = line_width * axis_mod;
          a[0] += s[0]/2. * mod;
          a[1] += s[1]/2. * mod;
          a[2] += s[2]/2. * mod;
@@ -416,7 +417,7 @@ static int vis_updateData( GLfloat *data, GLfloat *col, const synthesis_t *syn,
          dq_cr_copy( syn_P[i], P );
 
       /* Null point. */
-      mod = line_width/2.;
+      mod = line_width * axis_mod;
       for (k=0; k<3; k++)
          a[k] = o[k] + M[k][0]/3.*mod;
       fcopy( &data[3*(p++)], o );
@@ -744,15 +745,27 @@ int visualize( const synthesis_t *syn_a_in, const synthesis_t *syn_b_in )
             else if (evt.key.keysym.sym == SDLK_s)
                gl_screenshot( "out.png" );
             else if (evt.key.keysym.sym == SDLK_KP_PLUS) {
-               line_width += 1.0f;
+               line_width *= 1.1f;
                glLineWidth( line_width );
                vis_updateData( vdata, NULL, syn, col, cola, cur_frame, state, syn_P, NULL );
                if (syn_b != NULL)
                   vis_updateDataFrom( syn_b, angles_cmp, syn_P, cur_frame, state );
             }
             else if (evt.key.keysym.sym == SDLK_KP_MINUS) {
-               line_width = MAX( 1.0f, line_width-1.0f );
+               line_width = MAX( 1.0f, line_width/1.1f );
                glLineWidth( line_width );
+               vis_updateData( vdata, NULL, syn, col, cola, cur_frame, state, syn_P, NULL );
+               if (syn_b != NULL)
+                  vis_updateDataFrom( syn_b, angles_cmp, syn_P, cur_frame, state );
+            }
+            else if (evt.key.keysym.sym == SDLK_KP_DIVIDE) {
+               axis_mod *= 1.1f;
+               vis_updateData( vdata, NULL, syn, col, cola, cur_frame, state, syn_P, NULL );
+               if (syn_b != NULL)
+                  vis_updateDataFrom( syn_b, angles_cmp, syn_P, cur_frame, state );
+            }
+            else if (evt.key.keysym.sym == SDLK_KP_MULTIPLY) {
+               axis_mod /= 1.1f;
                vis_updateData( vdata, NULL, syn, col, cola, cur_frame, state, syn_P, NULL );
                if (syn_b != NULL)
                   vis_updateDataFrom( syn_b, angles_cmp, syn_P, cur_frame, state );
