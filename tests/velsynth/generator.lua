@@ -222,8 +222,7 @@ end
 function create_n_axes( n, info )
    local t = {}
    for i=1,n do
-      t[ #t+1 ] = { { 1, 0, 0 }, { 0, 0, 0 } }
-      --t[ #t+1 ] = { rand_plucker() }
+      t[ #t+1 ] = { rand_plucker() }
    end
    return t
 end
@@ -342,15 +341,15 @@ function generator_input( out, n, P, V, A )
       for j=1,n[i] do -- Chain
          angles[i][j] = {}
          for k=1,mp do -- Pose
-            angles[i][j][k] = 0 --math.pi*prng.num()*2
+            angles[i][j][k] = math.pi*prng.num()*2
          end
          velocities[i][j] = {}
          for k=1,mv do
-            velocities[i][j][k] = 0 --math.pi*(prng.num()*2-1)
+            velocities[i][j][k] = math.pi*(prng.num()*2-1)
          end
          accelerations[i][j] = {}
          for k=1,ma do
-            accelerations[i][j][k] = 0 --math.pi*(prng.num()*2-1)
+            accelerations[i][j][k] = math.pi*(prng.num()*2-1)
          end
       end
    end
