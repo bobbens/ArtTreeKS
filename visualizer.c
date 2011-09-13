@@ -196,7 +196,7 @@ static GLfloat* vis_allocData( int *n, const synthesis_t *syn, GLfloat **col )
    /* Load memory. */
    dof = 0;
    for (i=0; i<syn->nbranches; i++)
-      dof += 2*3*(3*syn->branches[i].njoints+8);
+      dof += 3*(6*syn->branches[i].njoints+8);
    *n = dof;
    data = calloc( (*n), sizeof(GLfloat) );
 
@@ -568,8 +568,8 @@ static void vis_renderData( const synthesis_t *syn,
    else {
       fing_offset = 0;
       for (i=0; i<finger; i++)
-         fing_offset += 2*3*(3*syn->branches[i].njoints+8);
-      fing_size = 2*(3*syn->branches[finger].njoints+8); /* No need for an
+         fing_offset += 3*(6*syn->branches[i].njoints+8);
+      fing_size = 6*syn->branches[finger].njoints+8; /* No need for an
                additional 3 as it's already taken into account by opengl. */
    }
    glVertexPointer( 3, GL_FLOAT, 0, &data[fing_offset] );
