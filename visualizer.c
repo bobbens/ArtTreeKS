@@ -59,6 +59,7 @@ static double vis_at[3];
 static double vis_up[3] = { 0., 0., 1. };
 static int vis_width     = 800;
 static int vis_height    = 600;
+static GLfloat line_width = 3.;
 
 
 static const double motion_k    = 0.5;
@@ -590,7 +591,7 @@ static int gl_setup (void)
    glClearColor( col_bg[0], col_bg[1], col_bg[2], 1.0 );
    glEnable(  GL_DEPTH_TEST );
    glDisable( GL_TEXTURE_2D );
-   glLineWidth( 3. );
+   glLineWidth( line_width );
    glHint(    GL_LINE_SMOOTH_HINT, GL_NICEST );
    glEnable(  GL_LINE_SMOOTH );
    return 0;
@@ -737,6 +738,14 @@ int visualize( const synthesis_t *syn_a_in, const synthesis_t *syn_b_in )
             }
             else if (evt.key.keysym.sym == SDLK_s)
                gl_screenshot( "out.png" );
+            else if (evt.key.keysym.sym == SDLK_PLUS) {
+               line_width += 1.0f;
+               glLineWidth( line_width );
+            }
+            else if (evt.key.keysym.sym == SDLK_MINUS) {
+               line_width -= 1.0f;
+               glLineWidth( line_width );
+            }
          }
          else if (evt.type == SDL_KEYUP) {
             if      (evt.key.keysym.sym == SDLK_DOWN) {
