@@ -953,7 +953,9 @@ static int synL_printClaim( lua_State *L )
 static int synL_printJacobian( lua_State *L )
 {
    synthesis_t *syn = luaL_checksyn(L,1);
-   double step = luaL_checknumber(L,2);
+   double step = 1e-3;
+   if (lua_gettop(L) > 1)
+      step = luaL_checknumber(L,2);
    syn_printJacobian( syn, step );
    return 0;
 }
