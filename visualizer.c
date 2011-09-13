@@ -195,8 +195,8 @@ static GLfloat* vis_allocData( int *n, const synthesis_t *syn, GLfloat **col )
    /* Load memory. */
    dof = 0;
    for (i=0; i<syn->nbranches; i++)
-      dof += syn->branches[i].njoints + 2;
-   *n = dof*3*3*2;
+      dof += 2*3*(3*syn->branches[i].njoints+8);
+   *n = dof;
    data = calloc( (*n), sizeof(GLfloat) );
 
    /* Allocate colour. */
@@ -567,9 +567,9 @@ static void vis_renderData( const synthesis_t *syn,
    else {
       fing_offset = 0;
       for (i=0; i<finger; i++)
-         fing_offset += syn->branches[i].njoints + 2;
-      fing_offset *= 3*3*2;
-      fing_size = (syn->branches[finger].njoints+2)*3*2;
+         fing_offset += 2*3*(3*syn->branches[i].njoints+8);
+      fing_size = 2*(3*syn->branches[finger].njoints+8); /* No need for an
+               additional 3 as it's already taken into account by opengl. */
    }
    glVertexPointer( 3, GL_FLOAT, 0, &data[fing_offset] );
    glColorPointer(  3, GL_FLOAT, 0, &col[fing_offset] );
