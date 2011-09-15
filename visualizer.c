@@ -72,6 +72,8 @@ static const double motion_k    = 0.5;
 static void gl_screenshot( const char *filename );
 static int write_png( const char *file_name, png_bytep *rows,
       int w, int h, int colourtype, int bitdepth );
+static int vis_povrayData( FILE *fout, const synthesis_t *syn,
+      int frame, double state, const double *angles );
 static int vis_updateData( GLfloat *data, GLfloat *col, const synthesis_t *syn,
       GLfloat col_base[3], GLfloat col_axes[3], int frame, double state, dq_t *syn_P,
       const double *angles );
@@ -300,6 +302,192 @@ static int vis_updateDataInterpolate( GLfloat *data, const synthesis_t *syn,
    return 0;
 }
 
+
+/**
+ * @brief Saves output as povray file.
+ */
+static int vis_povrayData( FILE *fout, const synthesis_t *syn,
+      int frame, double state, const double *angles )
+{
+   int i, j, p, c, f;
+   dq_t T, R, L, P;
+   double s[3], s0[3], o[3], a[3], z[3], ang;
+   double M[3][3];
+   double next[3], prop[3];
+   const double pz[3] = { 0., 0., 0. };
+   kin_branch_t *br;
+   kin_joint_t *kj;
+   const char povray_header[] =
+         "#include \"colors.inc\"\n"
+         "\n"
+         "/* Colours of various objects. */\n"
+         "#declare rigid_colour    = Yellow;\n"
+         "#declare axis_colour     = Blue;\n"
+         "#declare effector_colour = Green;\n"
+         "\n"
+         "/* Radius of various objects. */\n"
+         "#declare box_dim         = 2.0;\n"
+         "#declare rigid_radius    = 0.5;\n"
+         "#declare axis_length     = 3.0;\n"
+         "#declare axis_radius     = 0.5;\n"
+         "#declare effector_radius = 1.0;\n"
+         "\n"
+         "/* Lighting and general set up. */\n"
+         "global_settings { assumed_gamma 1 }\n"
+         "background { rgb 1 }\n"
+         "camera {\n"
+         "   location <1,1,1>*50\n"
+         "   look_at <0,0,0>\n"
+         "   rotate y*clock\n"
+         "}\n"
+         "light_source{ <-40,40,40>, 1 }\n";
+   const char tex_axis[] =
+         "   texture {\n"
+         "      pigment { color axis_colour }\n"
+         "      finish { phong 1 }\n"
+         "   }\n";
+   const char tex_rigid[] =
+         "   texture {\n"
+         "      pigment { color rigid_colour }\n"
+         "      finish { phong 1 }\n"
+         "   }\n";
+   const char tex_effector[] =
+         "   texture {\n"
+         "      pigment { color effector_colour }\n"
+         "      finish { phong 1 }\n"
+         "   }\n";
+
+   fprintf( fout,
+         "/*POVRay Output for Frame %d */\n\n"
+         "%s\n",
+         frame, povray_header );
+
+   /* Copy angles. */
+   if (angles != NULL)
+      for (i=0; i<syn->njoints; i++)
+         syn->joints[i]->pos_cur = angles[i];
+
+   fprintf( fout,
+         "/* Base element. */\n"
+         "box {\n"
+         "   box_dim/2.*<-1,-1,-1>,\n"
+         "   box_dim/2.*< 1, 1, 1>\n"
+         "   texture {\n"
+         "      pigment { color Red }\n"
+         "      finish { phong 1 }\n"
+         "   }\n"
+         "}\n\n" );
+
+   /* Fill memory.
+    * We're going to use GL_LINES, so we have to store start and end point of every line. */
+   p = 0;
+   c = 0;
+   f = frame;
+   for (i=0; i<syn->nbranches; i++) {
+      br = &syn->branches[i];
+      /* Start at origin. */
+      o[0] = o[1] = o[2] = 0.;
+      z[0] = z[1] = 0.;
+      z[2] = 1.;
+
+      /* Initialize transformation. */
+      dq_cr_point( T, pz );
+
+      /* Deal with all the branch joints. */
+      for (j=0; j<br->njoints; j++) {
+         kj = br->joints[j];
+
+         /* Transform the line using previous transformation. */
+         dq_cr_line_plucker( L, kj->S.s, kj->S.s0 );
+         dq_op_f2g( L, T, L );
+
+         /* Extract updated screw axis from dual quaternion. */
+         s[0]  = L[1];
+         s[1]  = L[2];
+         s[2]  = L[3];
+         s0[0] = L[4];
+         s0[1] = L[5];
+         s0[2] = L[6];
+
+         /* Update the transform with current line untransformed. */
+         if (angles == NULL) {
+            if (f==0)
+               ang = state * ((double*)kj->pos.values.mask_vec)[0];
+            else if (f<syn->L-1) {
+               double diff = ang_diff( ((double*)kj->pos.values.mask_vec)[f-1], ((double*)kj->pos.values.mask_vec)[f] );
+               ang = ((double*)kj->pos.values.mask_vec)[f-1] + state * diff;
+            }
+            else
+               ang = ((double*)kj->pos.values.mask_vec)[ f-1 ];
+         }
+         else
+            ang = kj->pos_cur;
+         dq_cr_rotation_plucker( R, ang, kj->S.s, kj->S.s0 );
+         dq_op_mul( T, T, R );
+
+         /* Calculate displacement from last. */
+         vis_propagatePosition( next, prop, o, z, s, s0 );
+         memcpy( z, s, sizeof(double)*3 );
+
+         /* Copy end. */
+         fprintf( fout,
+               "/* Branch %d, Rigid-Body to Joint %d */\n"
+               "cylinder {\n"
+               "   <%f, %f, %f>,\n"
+               "   <%f, %f, %f>,\n"
+               "   rigid_radius\n"
+               "%s"
+               "}\n\n",
+               i, j,
+               o[0], o[1], o[2], prop[0], prop[1], prop[2],
+               tex_rigid
+               );
+
+         /* Create axis. */
+         memcpy( o, prop, sizeof(double)*3 );
+         memcpy( a, o,    sizeof(double)*3 );
+         fprintf( fout,
+               "/* Branch %d, Axis %d */\n"
+               "cylinder {\n"
+               "   <%f, %f, %f> + axis_length/2.*<%f, %f, %f>,\n"
+               "   <%f, %f, %f> - axis_length/2.*<%f, %f, %f>,\n"
+               "   axis_radius\n"
+               "%s"
+               "}\n\n",
+               i, j,
+               a[0], a[1], a[2], s[0], s[1], s[2],
+               a[0], a[1], a[2], s[0], s[1], s[2],
+               tex_axis
+               );
+      }
+
+      /* Now we need the FK. */
+      dq_op_mul( P, T, br->tcp->d.tcp.P[0] );
+      dq_op_extract( M, o, P );
+
+      fprintf( fout,
+            "/* Branch %d, Rigid-Body to End Effector */\n"
+            "cylinder {\n"
+            "   <%f, %f, %f>,\n"
+            "   <%f, %f, %f>,\n"
+            "   rigid_radius\n"
+            "%s"
+            "}\n\n",
+            i, a[0], a[1], a[2], o[0], o[1], o[2], tex_rigid
+            );
+      fprintf( fout,
+            "/* Branch %d, End Effector */\n"
+            "sphere {\n"
+            "   <%f, %f, %f>,\n"
+            "   effector_radius\n"
+            "%s"
+            "}\n\n",
+            i, o[0], o[1], o[2], tex_effector
+            );
+   }
+
+   return 0;
+}
 
 /**
  * @brief Loads visual data.
@@ -769,6 +957,11 @@ int visualize( const synthesis_t *syn_a_in, const synthesis_t *syn_b_in )
                vis_updateData( vdata, NULL, syn, col, cola, cur_frame, state, syn_P, NULL );
                if (syn_b != NULL)
                   vis_updateDataFrom( syn_b, angles_cmp, syn_P, cur_frame, state );
+            }
+            else if (evt.key.keysym.sym == SDLK_r) {
+               FILE *f = fopen( "out.pov", "w" );
+               vis_povrayData( f, syn, cur_frame, state, NULL );
+               fclose( f );
             }
          }
          else if (evt.type == SDL_KEYUP) {
