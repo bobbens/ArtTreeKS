@@ -306,6 +306,171 @@ static int vis_updateDataInterpolate( GLfloat *data, const synthesis_t *syn,
 /**
  * @brief Saves output as povray file.
  */
+static int vis_blenderData( FILE *fout, const synthesis_t *syn,
+      int frame, double state, const double *angles )
+{
+   int i, j, p, c, f;
+   dq_t T, R, L, P;
+   double s[3], s0[3], o[3], a[3], z[3], ang;
+   double M[3][3];
+   double next[3], prop[3];
+   const double pz[3] = { 0., 0., 0. };
+   kin_branch_t *br;
+   kin_joint_t *kj;
+   const char blender_header[] =
+         "from Blender import *\n"
+         "from Blender import Mathutils\n"
+         "from Blender.Mathutils import *\n"
+         "import math\n"
+         "\n"
+         "# Dimension stuff\n"
+         "box_dim         = 2.0\n"
+         "rigid_radius    = 0.5\n"
+         "axis_length     = 3.0\n"
+         "axis_radius     = 0.5\n"
+         "effector_radius = 1.0\n"
+         "\n"
+         "ico_divide      = 5\n"
+         "cyl_divide      = 64\n"
+         "\n"
+         "sc = Scene.GetCurrent()\n"
+         "\n"
+         "for ob in sc.objects:\n"
+         "   sc.objects.unlink(ob)\n"
+         "\n"
+         "def cyl_between( ob, fro, to ):\n"
+         "   D = ( to[0]-fro[0], to[1]-fro[1], to[2]-fro[2] )\n"
+         "   Vaxis = Vector( D ).normalize()\n"
+         "   Vobj = Vector((0,0,1))\n"
+         "   Vrot = Vobj.cross( Vaxis )\n"
+         "   angle = math.acos( Vobj.dot( Vaxis ) )\n"
+         "   R = RotationMatrix( math.degrees( angle ), 3, 'r', Vrot )\n"
+         "   ob.setMatrix( R )\n"
+         "   ob.setLocation( fro[0]+D[0]/2, fro[1]+D[1]/2, fro[2]+D[2]/2 )\n"
+         "\n"
+         "def cyl_position( ob, pos, rot ):\n"
+         "   cyl_between( ob, pos, [pos[0]+rot[0], pos[1]+rot[1], pos[2]+rot[2]] )\n"
+         "   ob.setLocation( pos[0], pos[1], pos[2] )\n"
+         "\n";
+   const char blender_footer[] =
+         "Window.RedrawAll()\n";
+
+   fprintf( fout,
+         "# Blender Output for Frame %d\n\n"
+         "%s\n",
+         frame, blender_header );
+
+   /* Copy angles. */
+   if (angles != NULL)
+      for (i=0; i<syn->njoints; i++)
+         syn->joints[i]->pos_cur = angles[i];
+
+   fprintf( fout,
+         "# Base element\n"
+         "me = Mesh.Primitives.Cube( box_dim )\n"
+         "sc.objects.new(me,'BaseCube')\n\n" );
+
+   /* Fill memory.
+    * We're going to use GL_LINES, so we have to store start and end point of every line. */
+   p = 0;
+   c = 0;
+   f = frame;
+   for (i=0; i<syn->nbranches; i++) {
+      br = &syn->branches[i];
+      /* Start at origin. */
+      o[0] = o[1] = o[2] = 0.;
+      z[0] = z[1] = 0.;
+      z[2] = 1.;
+
+      /* Initialize transformation. */
+      dq_cr_point( T, pz );
+
+      /* Deal with all the branch joints. */
+      for (j=0; j<br->njoints; j++) {
+         kj = br->joints[j];
+
+         /* Transform the line using previous transformation. */
+         dq_cr_line_plucker( L, kj->S.s, kj->S.s0 );
+         dq_op_f2g( L, T, L );
+
+         /* Extract updated screw axis from dual quaternion. */
+         s[0]  = L[1];
+         s[1]  = L[2];
+         s[2]  = L[3];
+         s0[0] = L[4];
+         s0[1] = L[5];
+         s0[2] = L[6];
+
+         /* Update the transform with current line untransformed. */
+         if (angles == NULL) {
+            if (f==0)
+               ang = state * ((double*)kj->pos.values.mask_vec)[0];
+            else if (f<syn->L-1) {
+               double diff = ang_diff( ((double*)kj->pos.values.mask_vec)[f-1], ((double*)kj->pos.values.mask_vec)[f] );
+               ang = ((double*)kj->pos.values.mask_vec)[f-1] + state * diff;
+            }
+            else
+               ang = ((double*)kj->pos.values.mask_vec)[ f-1 ];
+         }
+         else
+            ang = kj->pos_cur;
+         dq_cr_rotation_plucker( R, ang, kj->S.s, kj->S.s0 );
+         dq_op_mul( T, T, R );
+
+         /* Calculate displacement from last. */
+         vis_propagatePosition( next, prop, o, z, s, s0 );
+         memcpy( z, s, sizeof(double)*3 );
+
+         /* Copy end. */
+         fprintf( fout,
+               "# Branch %d, Rigid-Body to Joint %d\n"
+               "me = Mesh.Primitives.Cylinder( cyl_divide, rigid_radius*2., %f )\n"
+               "ob = sc.objects.new(me,'Rigid')\n"
+               "cyl_between( ob, [%f, %f, %f], [%f, %f, %f] )\n\n",
+               i, j, vec3_distance( o, prop ),
+               o[0], o[1], o[2], prop[0], prop[1], prop[2] );
+
+         /* Create axis. */
+         memcpy( o, prop, sizeof(double)*3 );
+         memcpy( a, o,    sizeof(double)*3 );
+         fprintf( fout,
+               "# Branch %d, Joint %d\n"
+               "me = Mesh.Primitives.Cylinder( cyl_divide, axis_radius*2., axis_length )\n"
+               "ob = sc.objects.new(me,'Joint')\n"
+               "cyl_position( ob, [%f, %f, %f], [%f, %f, %f] )\n\n",
+               i, j,
+               a[0], a[1], a[2], s[0], s[1], s[2] );
+      }
+
+      /* Now we need the FK. */
+      dq_op_mul( P, T, br->tcp->d.tcp.P[0] );
+      dq_op_extract( M, o, P );
+
+      fprintf( fout,
+            "# Branch %d, Rigid-Body to End Effector\n"
+            "me = Mesh.Primitives.Cylinder( cyl_divide, rigid_radius*2., %f )\n"
+            "ob = sc.objects.new(me,'Rigid')\n"
+            "cyl_between( ob, [%f, %f, %f], [%f, %f, %f] )\n\n",
+            i, vec3_distance( o, prop ),
+            a[0], a[1], a[2], o[0], o[1], o[2] );
+      fprintf( fout,
+            "# Branch %d End Effector\n"
+            "me = Mesh.Primitives.Icosphere( ico_divide, effector_radius*2. )\n"
+            "ob = sc.objects.new(me,'EE')\n"
+            "ob.LocX = %f\n"
+            "ob.LocY = %f\n"
+            "ob.LocZ = %f\n\n",
+            i, o[0], o[1], o[2] );
+   }
+
+   fprintf( fout, "%s",  blender_footer );
+
+   return 0;
+}
+
+/**
+ * @brief Saves output as povray file.
+ */
 static int vis_povrayData( FILE *fout, const synthesis_t *syn,
       int frame, double state, const double *angles )
 {
@@ -959,8 +1124,13 @@ int visualize( const synthesis_t *syn_a_in, const synthesis_t *syn_b_in )
                   vis_updateDataFrom( syn_b, angles_cmp, syn_P, cur_frame, state );
             }
             else if (evt.key.keysym.sym == SDLK_r) {
-               FILE *f = fopen( "out.pov", "w" );
+               FILE *f;
+               f = fopen( "out.pov", "w" );
                vis_povrayData( f, syn, cur_frame, state, NULL );
+               fclose( f );
+
+               f = fopen( "out.py", "w" );
+               vis_blenderData( f, syn, cur_frame, state, NULL );
                fclose( f );
             }
          }
