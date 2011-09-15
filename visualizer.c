@@ -336,7 +336,8 @@ static int vis_blenderData( FILE *fout, const synthesis_t *syn,
          "sc = Scene.GetCurrent()\n"
          "\n"
          "for ob in sc.objects:\n"
-         "   sc.objects.unlink(ob)\n"
+         "   if ob.type == 'Mesh':\n"
+         "      sc.objects.unlink(ob)\n"
          "\n"
          "def cyl_between( ob, fro, to ):\n"
          "   D = ( to[0]-fro[0], to[1]-fro[1], to[2]-fro[2] )\n"
@@ -351,6 +352,18 @@ static int vis_blenderData( FILE *fout, const synthesis_t *syn,
          "def cyl_position( ob, pos, rot ):\n"
          "   cyl_between( ob, pos, [pos[0]+rot[0], pos[1]+rot[1], pos[2]+rot[2]] )\n"
          "   ob.setLocation( pos[0], pos[1], pos[2] )\n"
+         "\n"
+         "mat_base = Material.New( 'matbase' )\n"
+         "mat_base.setRGBCol( 0.8, 0.2, 0.2 )\n"
+         "\n"
+         "mat_axis = Material.New( 'mataxis' )\n"
+         "mat_axis.setRGBCol( 0.2, 0.2, 0.8 )\n"
+         "\n"
+         "mat_rigid = Material.New( 'matrigid' )\n"
+         "mat_rigid.setRGBCol( 1.0, 0.8, 0.0 )\n"
+         "\n"
+         "mat_effector = Material.New( 'mateffector' )\n"
+         "mat_effector.setRGBCol( 0.2, 0.8, 0.2 )\n"
          "\n";
    const char blender_footer[] =
          "Window.RedrawAll()\n";
@@ -368,7 +381,8 @@ static int vis_blenderData( FILE *fout, const synthesis_t *syn,
    fprintf( fout,
          "# Base element\n"
          "me = Mesh.Primitives.Cube( box_dim )\n"
-         "sc.objects.new(me,'BaseCube')\n\n" );
+         "me.materials = [ mat_base ]\n"
+         "ob = sc.objects.new(me,'BaseCube')\n\n" );
 
    /* Fill memory.
     * We're going to use GL_LINES, so we have to store start and end point of every line. */
@@ -425,6 +439,7 @@ static int vis_blenderData( FILE *fout, const synthesis_t *syn,
          fprintf( fout,
                "# Branch %d, Rigid-Body to Joint %d\n"
                "me = Mesh.Primitives.Cylinder( cyl_divide, rigid_radius*2., %f )\n"
+               "me.materials = [ mat_rigid ]\n"
                "ob = sc.objects.new(me,'Rigid')\n"
                "cyl_between( ob, [%f, %f, %f], [%f, %f, %f] )\n\n",
                i, j, vec3_distance( o, prop ),
@@ -436,6 +451,7 @@ static int vis_blenderData( FILE *fout, const synthesis_t *syn,
          fprintf( fout,
                "# Branch %d, Joint %d\n"
                "me = Mesh.Primitives.Cylinder( cyl_divide, axis_radius*2., axis_length )\n"
+               "me.materials = [ mat_axis ]\n"
                "ob = sc.objects.new(me,'Joint')\n"
                "cyl_position( ob, [%f, %f, %f], [%f, %f, %f] )\n\n",
                i, j,
@@ -449,6 +465,7 @@ static int vis_blenderData( FILE *fout, const synthesis_t *syn,
       fprintf( fout,
             "# Branch %d, Rigid-Body to End Effector\n"
             "me = Mesh.Primitives.Cylinder( cyl_divide, rigid_radius*2., %f )\n"
+            "me.materials = [ mat_rigid ]\n"
             "ob = sc.objects.new(me,'Rigid')\n"
             "cyl_between( ob, [%f, %f, %f], [%f, %f, %f] )\n\n",
             i, vec3_distance( o, prop ),
@@ -456,6 +473,7 @@ static int vis_blenderData( FILE *fout, const synthesis_t *syn,
       fprintf( fout,
             "# Branch %d End Effector\n"
             "me = Mesh.Primitives.Icosphere( ico_divide, effector_radius*2. )\n"
+            "me.materials = [ mat_effector ]\n"
             "ob = sc.objects.new(me,'EE')\n"
             "ob.LocX = %f\n"
             "ob.LocY = %f\n"
