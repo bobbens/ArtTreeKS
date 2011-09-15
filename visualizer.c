@@ -436,6 +436,7 @@ static int vis_blenderData( FILE *fout, const synthesis_t *syn,
          memcpy( z, s, sizeof(double)*3 );
 
          /* Copy end. */
+#if 1
          fprintf( fout,
                "# Branch %d, Rigid-Body to Joint %d\n"
                "me = Mesh.Primitives.Cylinder( cyl_divide, rigid_radius*2., %f )\n"
@@ -444,6 +445,24 @@ static int vis_blenderData( FILE *fout, const synthesis_t *syn,
                "cyl_between( ob, [%f, %f, %f], [%f, %f, %f] )\n\n",
                i, j, vec3_distance( o, prop ),
                o[0], o[1], o[2], prop[0], prop[1], prop[2] );
+#else
+         fprintf( fout,
+               "# Branch %d, Rigid-Body to Joint %d\n"
+               "me = Mesh.Primitives.Cylinder( cyl_divide, rigid_radius*2., %f )\n"
+               "me.materials = [ mat_rigid ]\n"
+               "ob = sc.objects.new(me,'Rigid')\n"
+               "cyl_between( ob, [%f, %f, %f], [%f, %f, %f] )\n\n",
+               i, j, vec3_distance( o, next ),
+               o[0], o[1], o[2], next[0], next[1], next[2] );
+         fprintf( fout,
+               "# Branch %d, Rigid-Body to Joint %d\n"
+               "me = Mesh.Primitives.Cylinder( cyl_divide, rigid_radius*2., %f )\n"
+               "me.materials = [ mat_rigid ]\n"
+               "ob = sc.objects.new(me,'Rigid')\n"
+               "cyl_between( ob, [%f, %f, %f], [%f, %f, %f] )\n\n",
+               i, j, vec3_distance( next, prop ),
+               next[0], next[1], next[2], prop[0], prop[1], prop[2] );
+#endif
 
          /* Create axis. */
          memcpy( o, prop, sizeof(double)*3 );
