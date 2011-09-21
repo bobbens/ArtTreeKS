@@ -927,6 +927,9 @@ static int solver_parse_cmaes( lua_State *L, cmaes_options_t *opts, int ind )
 {
    luaL_checktype(L,ind,LUA_TTABLE);
    TBL_DBL( opts->lambda, L, ind, "lambda" );
+   TBL_DBL( opts->stop_fitness, L, ind, "stop_fitness" );
+   TBL_ULONG( opts->stop_evals, L, ind, "stop_evals" );
+   TBL_ULONG( opts->stop_iter, L, ind, "stop_iter" );
    return 0;
 }
 static int synL_solve_cmaes( lua_State *L )

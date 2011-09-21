@@ -30,6 +30,10 @@ void cmaes_options_default( cmaes_options_t *opts )
    assert( opts != NULL );
    memset( opts, 0, sizeof(cmaes_options_t) );
    opts->lambda = 100;
+   /* Stop conditions. */
+   opts->stop_fitness   = 1e-10;
+   opts->stop_evals     = UINT_MAX;
+   opts->stop_iter      = UINT_MAX;
 }
 
 
@@ -126,9 +130,9 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
    //cmaes_ReadSignals( &evo, "signals.par" );
 
    /* Set stop fitness. */
-   evo.sp.stopTolFun        = 1e-10;
-   //evo.sp.stopMaxFunEvals   = ;
-   //evo.sp.stopMaxIter       = ;
+   evo.sp.stopTolFun        = opts->stop_fitness;
+   evo.sp.stopMaxFunEvals   = (double) opts->stop_evals;
+   evo.sp.stopMaxIter       = (double) opts->stop_iter;
 
    /* Start iterating fool! */
    gettimeofday( &tstart, NULL );
@@ -144,7 +148,7 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
          syn_map_from_x( syn, pop[p], syn->n );
 
          /* Reenforce plucker coordinates here */
-         cmaes_normalize( syn );
+         //cmaes_normalize( syn );
 
          /* Calculate and store fitness. */
          fitvals[p] = cmaes_fitness( syn );
@@ -166,7 +170,7 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
    /* Map. */
    xfinal = cmaes_GetPtr( &evo, "xbestever" );
    syn_map_from_x(  syn, xfinal,     syn->n );
-   cmaes_normalize( syn );
+   //cmaes_normalize( syn );
    syn_map_to_x(    syn, NULL, NULL, syn->x );
    fit = cmaes_fitness( syn );
    if (info != NULL) {

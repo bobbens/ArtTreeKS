@@ -128,6 +128,9 @@ int syn_solve_nlopt( synthesis_t *syn, nlopt_options_t *opts, nlopt_info_t *info
 
 typedef struct cmaes_options_s {
    int lambda;             /**< Population parameter, >= 2. */
+   double stop_fitness;    /**< Fitness to stop at. */
+   unsigned int stop_evals; /**< Maximum evaluations. */
+   unsigned int stop_iter; /**< Maximum iterations. */
 } cmaes_options_t;
 
 
