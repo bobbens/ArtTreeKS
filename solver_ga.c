@@ -1027,7 +1027,7 @@ static void ga_signal_fpe( int sig, siginfo_t *info, void *unused )
 /**
  * @brief see if must stop.
  */
-static int must_stop( ga_options_t *opts_use, ga_info_t *ga_info )
+static int must_stop( ga_options_t *opts_use, const ga_info_t *ga_info )
 {
    /* Check time and epoch. */
    if ((opts_use->f_epoch != NULL) && opts_use->f_epoch( opts_use, ga_info ))

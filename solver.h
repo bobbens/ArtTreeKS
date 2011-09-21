@@ -127,11 +127,14 @@ int syn_solve_nlopt( synthesis_t *syn, nlopt_options_t *opts, nlopt_info_t *info
 
 
 typedef struct cmaes_options_s {
+   /* Solver info. */
    int converge;           /**< Should use minpack to converge? */
    int lambda;             /**< Population parameter, >= 2. */
+   /* Stop conditions. */
    double stop_fitness;    /**< Fitness to stop at. */
    unsigned int stop_evals; /**< Maximum evaluations. */
    unsigned int stop_iter; /**< Maximum iterations. */
+   unsigned long stop_elapsed; /**< Maxmimu calculation time. */
    /* MINPACK options. */
    minpack_options_t minpack; /**< MINPACK options to use. */
 } cmaes_options_t;

@@ -42,7 +42,7 @@ void cmaes_options_default( cmaes_options_t *opts )
 /**
  * @brief Normalize synthesis.
  */
-static void cmaes_normalize( synthesis_t *syn, cmaes_options_t *opts )
+static void cmaes_converge( synthesis_t *syn, cmaes_options_t *opts )
 {
 #if 0
    int i;
@@ -79,6 +79,23 @@ static double cmaes_fitness( synthesis_t *syn )
 
 
 /**
+ * @brief Check to see if we must stop.
+ */
+static int must_stop( const cmaes_options_t *opts, const cmaes_info_t *info )
+{
+   /* Check time. */
+   if ((opts->stop_elapsed != 0) && (opts->stop_elapsed < info->elapsed))
+      return 1;
+
+   /* Check fitness. */
+   if ((opts->stop_fitness != 0.) && (opts->stop_fitness > info->minf))
+      return 1;
+
+   return 0;
+}
+
+
+/**
  * @brief CMA-ES Solver.
  *
  * @note thread safe, uses no global variables.
@@ -91,14 +108,14 @@ static double cmaes_fitness( synthesis_t *syn )
 int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info )
 {
    cmaes_t evo;
-   unsigned int iter;
    int p, i, lambda, npop;
-   double fit, *fitvals, *stddev, best;
+   double fit, *fitvals, *stddev;
    const double *xfinal;
    double *const *pop;
    struct timeval tstart, tend;
    const char *done;
    cmaes_options_t *opts_use, opts_def;
+   cmaes_info_t info_out;
 
    /* Choose what options to use. */
    cmaes_options_default( &opts_def );
@@ -138,8 +155,8 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
    evo.sp.stopMaxIter       = (double) opts_use->stop_iter;
 
    /* Start iterating fool! */
+   memset( &info_out, 0, sizeof(cmaes_info_t) );
    gettimeofday( &tstart, NULL );
-   iter = 0;
    while ((done = cmaes_TestForTermination( &evo )) == NULL) {
       pop   = cmaes_SamplePopulation( &evo );
       npop  = cmaes_Get( &evo, "popsize" );
@@ -151,7 +168,7 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
          syn_map_from_x( syn, pop[p], syn->n );
 
          /* Reenforce plucker coordinates here */
-         cmaes_normalize( syn, opts_use );
+         cmaes_converge( syn, opts_use );
 
          /* Calculate and store fitness. */
          fitvals[p] = cmaes_fitness( syn );
@@ -161,33 +178,32 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
       cmaes_UpdateDistribution( &evo, fitvals );
 
       /* Output some stuff if necessary. */
-      iter++;
-      best = cmaes_Get( &evo, "fbestever" );
-      printf( "[%d] Best: %.3e\n", iter, best );
-      if (best < opts_use->stop_fitness)
+      info_out.iterations++;
+      info_out.minf = cmaes_Get( &evo, "fbestever" );
+      gettimeofday( &tend, NULL );
+      info_out.elapsed = (unsigned long)((tend.tv_sec - tstart.tv_sec)
+                       + (tend.tv_usec - tstart.tv_usec)/1000000);
+      printf( "[%03d] Best: %.3e, Cur: %.3e\n",
+            info_out.iterations, info_out.minf,
+            cmaes_Get( &evo, "fitness" ) );
+      if (must_stop( opts, &info_out ))
          break;
    }
    gettimeofday( &tend, NULL );
-   if (info != NULL)
-      info->elapsed = (unsigned long)((tend.tv_sec - tstart.tv_sec)
-                    + (tend.tv_usec - tstart.tv_usec)/1000000);
    if (done != NULL)
       printf("%s\n",done);
 
    /* Map. */
    xfinal = cmaes_GetPtr( &evo, "xbestever" );
-   syn_map_from_x(  syn, xfinal,     syn->n );
-   cmaes_normalize( syn, opts_use );
-   syn_map_to_x(    syn, NULL, NULL, syn->x );
+   syn_map_from_x( syn, xfinal,     syn->n );
+   cmaes_converge( syn, opts_use );
+   syn_map_to_x(   syn, NULL, NULL, syn->x );
    fit = cmaes_fitness( syn );
-   if (info != NULL) {
-      info->minf = fit;
-      info->iterations = iter;
-   }
+   if (info != NULL)
+      memcpy( info, &info_out, sizeof(cmaes_info_t) );
 
    /* Clean up. */
    cmaes_exit( &evo );
-   //free( xfinal );
 
    return 0;
 }

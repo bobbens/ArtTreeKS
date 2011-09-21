@@ -926,10 +926,12 @@ static int synL_solve_nlopt( lua_State *L )
 static int solver_parse_cmaes( lua_State *L, cmaes_options_t *opts, int ind )
 {
    luaL_checktype(L,ind,LUA_TTABLE);
+   TBL_BOOL( opts->converge, L, ind, "converge" );
    TBL_DBL( opts->lambda, L, ind, "lambda" );
    TBL_DBL( opts->stop_fitness, L, ind, "stop_fitness" );
    TBL_ULONG( opts->stop_evals, L, ind, "stop_evals" );
    TBL_ULONG( opts->stop_iter, L, ind, "stop_iter" );
+   TBL_ULONG( opts->stop_elapsed, L, ind, "stop_elapsed" );
    return 0;
 }
 static int synL_solve_cmaes( lua_State *L )
