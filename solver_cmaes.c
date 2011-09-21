@@ -92,7 +92,7 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
 {
    cmaes_t evo;
    unsigned int iter;
-   int p, i, dim, lambda, npop;
+   int p, i, lambda, npop;
    double fit, *fitvals, *stddev, best;
    const double *xfinal;
    double *const *pop;
@@ -100,11 +100,11 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
    const char *done;
    cmaes_options_t *opts_use, opts_def;
 
+   /* Choose what options to use. */
    cmaes_options_default( &opts_def );
    opts_use = (opts != NULL) ? opts : &opts_def;
 
    /* Parameters. */
-   dim      = syn->n; /**< Dimension of the system. */
    lambda   = opts_use->lambda;
    if (lambda == 0)
       lambda = 4 + floor( 3*log(syn->n) );
@@ -121,7 +121,7 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
 
    /* Initialize stuff. */
    fitvals = cmaes_init( &evo,
-         dim,     /* Dimension. */
+         syn->n,  /* Dimension. */
          syn->x,  /* X starting position. */
          stddev,  /* X starting standard deviation. */
          0,       /* Starting seed? */
@@ -129,7 +129,6 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
          "non"    /* Read from file. */
          );
    printf( "%s\n", cmaes_SayHello(&evo) );
-   //cmaes_ReadSignals( &evo, "signals.par" );
 
    /* Settings. */
 
