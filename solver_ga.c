@@ -579,7 +579,7 @@ static int ga_pop_grow( ga_population_t *pop )
    assert( pop->alloced == 0 );
    assert( pop->pop_target > 0 );
    pop->alloced = pop->pop_target;
-   pop->entities = calloc( (size_t)pop->alloced, sizeof(ga_entity_t) );
+   pop->entities = memcalloc( (size_t)pop->alloced, sizeof(ga_entity_t) );
 
    id = pop->pop-1;
    pop->entities[id].id = id;
@@ -746,7 +746,7 @@ static int ga_pop_pthread_init( ga_population_t *pop, const ga_options_t *opts )
       return 0;
 
    pthread_mutex_init( &pop->lock, NULL );
-   pop->th  = calloc( (size_t)opts->threads, sizeof(synthesis_pthread_t) );
+   pop->th  = memcalloc( (size_t)opts->threads, sizeof(synthesis_pthread_t) );
    assert( pop->th != NULL );
    pop->nth = opts->threads;
 
@@ -832,7 +832,7 @@ static int ga_pop_seed( ga_population_t *pop, const ga_options_t *opts )
 
    /* Allocate and seed entities. */
    pop->pop       = (int)round((double)opts->population * opts->seed_mul);
-   pop->entities  = calloc( (size_t)pop->pop, sizeof(ga_entity_t) );
+   pop->entities  = memcalloc( (size_t)pop->pop, sizeof(ga_entity_t) );
    assert( pop->entities != NULL );
    for (i=0; i<pop->pop; i++)
       pop->entities[i].id = i;
@@ -1171,7 +1171,7 @@ int syn_solve_ga( synthesis_t *syn, ga_options_t *opts, ga_info_t *info )
       double *vec, mean, stddev, min, max;
       int j, n;
       n = pop[pc].pop;
-      vec = malloc( n*sizeof(double) );
+      vec = memmalloc( n*sizeof(double) );
       for (j=0; j<n; j++)
          vec[j] = pop[pc].entities[j].fitness;
       rand_stats( &mean, &stddev, &min, &max, vec, n );
@@ -1226,7 +1226,7 @@ int syn_solve_ga( synthesis_t *syn, ga_options_t *opts, ga_info_t *info )
          double *vec, mean, stddev, min, max;
          int j, n;
          n = pop[pc].pop;
-         vec = malloc( n*sizeof(double) );
+         vec = memmalloc( n*sizeof(double) );
          for (j=0; j<n; j++)
             vec[j] = pop[pc].entities[j].fitness;
          rand_stats( &mean, &stddev, &min, &max, vec, n );
