@@ -46,6 +46,23 @@ static void plucker_normalize( plucker_t *P )
 
 
 /**
+ * @brief Calculcates fitness, does not modify anything other than fvec.
+ */
+static double cmaes_fitness( synthesis_t *syn )
+{
+   double fit;
+
+   syn_calc( syn );
+
+   fit = 0.;
+   for (i=0; i<syn->m; i++)
+      fit += fabs( syn->fvec[i] );
+
+   return fit;
+}
+
+
+/**
  * @brief CMA-ES Solver.
  *
  * @note thread safe, uses no global variables.
@@ -110,36 +127,29 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
                plucker_normalize( &kj->S );
          }
 
-         /* Process branches. */
-         for (i=0; i<syn->nbranches; i++)
-            syn_calc_branch( syn, &syn->branches[i] );
-
-         /* Map back. */
-         syn_map_to_fvec( syn, NULL, NULL, syn->fvec );
-
-         /* Calculate error. */
-         fit = 0.;
-         for (i=0; i<syn->m; i++)
-            fit += fabs( syn->fvec[i] );
-
-         /* Store fitness value. */
-         fitvals[p] = fit;
+         /* Calculate and store fitness. */
+         fitvals[p] = cmaes_fitness( syn );;
       }
 
       /* Update the distribution. */
       cmaes_UpdateDistribution( &evo, fitvals );
 
+      /* Output some stuff if necessary. */
       iter++;
       printf( "[%d] Best: %.3e\n", iter, cmaes_Get( &evo, "fbestever" ) );
    }
    gettimeofday( &tend, NULL );
    if (info != NULL)
-      info->elapsed = (unsigned long)((tend.tv_sec - tstart.tv_sec) + (tend.tv_usec - tstart.tv_usec)/1000000);
+      info->elapsed = (unsigned long)((tend.tv_sec - tstart.tv_sec)
+                    + (tend.tv_usec - tstart.tv_usec)/1000000);
 
    /* Map. */
    xfinal = cmaes_GetNew( &evo, "xbest" );
    syn_map_from_x(   syn, xfinal, syn->n );
    syn_map_to_x(     syn, NULL, NULL, syn->x );
+   fit = cmaes_fitness( syn );
+   if (info != NULL)
+      info->minf = fit;
 
    /* Clean up. */
    cmaes_exit( &evo );
