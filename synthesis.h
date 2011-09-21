@@ -10,15 +10,7 @@
 #include <dq/dq.h>
 
 #include "mapmask.h"
-
-
-/**
- * @brief Representation of a line using plucker coordinates.
- */
-typedef struct plucker_s {
-   double s[3];   /**< Direction of plucker coordinates. */
-   double s0[3];  /**< Moment of the plucker coordinate line. */
-} __attribute__((__packed__)) plucker_t;
+#include "kin_misc.h"
 
 
 /* Forward declaration of sythesis type. */

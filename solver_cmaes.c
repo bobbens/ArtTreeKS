@@ -11,14 +11,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
 #include <sys/time.h>
-
 #include <math.h>
 
 #include <dq/vec3.h>
 
 #include "cmaes_interface.h"
+#include "kin_misc.h"
 
 
 /**
@@ -34,18 +33,6 @@ void cmaes_options_default( cmaes_options_t *opts )
    opts->stop_fitness   = 1e-10;
    opts->stop_evals     = UINT_MAX;
    opts->stop_iter      = UINT_MAX;
-}
-
-
-/**
- * @brief Normalizes a plucker coordinate.
- */
-static void plucker_normalize( plucker_t *P )
-{
-   double c[3];
-   vec3_normalize( P->s );
-   vec3_cross( c, P->s, P->s0 );
-   vec3_cross( P->s0, c, P->s );
 }
 
 

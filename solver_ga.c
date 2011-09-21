@@ -20,6 +20,8 @@
 
 #include "synthesis.h"
 #include "rand.h"
+#include "mem.h"
+#include "kin_misc.h"
 
 
 /** Conditional logging. */
@@ -229,18 +231,6 @@ static void ga_ent_evaluate( ga_entity_t *ent, const ga_options_t *opts )
       LOG( v>9, "-Evaluated entity-%03d----------\n", ent->id );
       syn_printDetail( ent->syn );
    }
-}
-
-
-/**
- * @brief Normalizes a plucker coordinate.
- */
-static void plucker_normalize( plucker_t *P )
-{
-   double c[3];
-   vec3_normalize( P->s );
-   vec3_cross( c, P->s, P->s0 );
-   vec3_cross( P->s0, c, P->s );
 }
 
 

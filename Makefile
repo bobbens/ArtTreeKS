@@ -8,7 +8,7 @@ NLOPT		:= yes
 
 LIB		:= synthesis.so
 LIB_OBJS := synthesis.o synth_lua.o solver_minpack.o solver_ga.o visualizer.o sminpack.o mapmask.o
-LIB_OBJS := rand.o mem.o
+LIB_OBJS += rand.o mem.o kin_misc.o
 LIB_OBJS += cmaes.o solver_cmaes.o
 
 CFLAGS  := -g -fPIC
