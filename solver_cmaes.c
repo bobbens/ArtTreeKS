@@ -46,9 +46,7 @@ static void plucker_normalize( plucker_t *P )
 
 
 /**
- * @brief Does local convergence on a synthesis object.
- *
- * Uses Levenberg-Marquadt algorithm.
+ * @brief CMA-ES Solver.
  *
  * @note thread safe, uses no global variables.
  *
@@ -64,10 +62,11 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
    double fit, *fitvals, *stddev, *xfinal;
    double *const *pop;
    kin_joint_t *kj;
+   struct timeval tstart, tend;
 
    /* Parameters. */
    dim      = syn->n; /**< Dimension of the system. */
-   lambda   = 250;
+   lambda   = opts->lambda;
 
    /* Map to use as initial position. */
    syn_map_to_x( syn, NULL, NULL, syn->x );
@@ -92,6 +91,7 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
    //cmaes_ReadSignals( &evo, "signals.par" );
 
    /* Start iterating fool! */
+   gettimeofday( &tstart, NULL );
    iter = 0;
    while (!cmaes_TestForTermination( &evo )) {
       pop   = cmaes_SamplePopulation( &evo );
@@ -132,6 +132,9 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
       iter++;
       printf( "[%d] Best: %.3e\n", iter, cmaes_Get( &evo, "fbestever" ) );
    }
+   gettimeofday( &tend, NULL );
+   if (info != NULL)
+      info->elapsed = (unsigned long)((tend.tv_sec - tstart.tv_sec) + (tend.tv_usec - tstart.tv_usec)/1000000);
 
    /* Map. */
    xfinal = cmaes_GetNew( &evo, "xbest" );
