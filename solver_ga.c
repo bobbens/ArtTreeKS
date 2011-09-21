@@ -19,6 +19,7 @@
 #include <dq_vec3.h>
 
 #include "synthesis.h"
+#include "rand.h"
 
 
 /** Conditional logging. */
@@ -87,15 +88,6 @@ struct ga_population_s {
 /*
  * Prototypes.
  */
-/* Randomness. */
-static void rand_init (void);
-static void rand_exit (void);
-static int rand_bool (void);
-static int rand_int_range( int low, int high );
-static double rand_double (void);
-static double rand_double_range( double low, double high );
-static double rand_double_exponential( double lambda );
-static double rand_double_gaussian (void);
 /* Entities. */
 static void ga_ent_evaluate( ga_entity_t *ent, const ga_options_t *opts );
 static void ga_ent_seed( ga_entity_t *ent, const synthesis_t *syn, const ga_options_t *opts );
@@ -136,88 +128,7 @@ static void ga_signal_fpe( int sig, siginfo_t *info, void *unused );
 /*
  * Globals.
  */
-static int rand_fd   = -1; /**< /dev/urandom */
 static int ga_finish = 0; /**< Early finish? */
-
-
-/**
- * @brief Initializes random subsystem.
- *
- * @TODO Possibly make it thread safe or use a different approach.
- */
-static void rand_init (void)
-{
-   if (rand_fd < 0)
-      rand_fd = open( "/dev/urandom", O_RDONLY );
-   assert( rand_fd >= 0 );
-
-   unsigned int seed;
-   ssize_t ret = read( rand_fd, &seed, sizeof(seed) );
-   assert( ret == sizeof(seed) );
-   srand( seed );
-}
-/**
- * @brief Exits random subsystem.
- */
-static void rand_exit (void)
-{
-   if (rand_fd >= 0)
-      close( rand_fd );
-   rand_fd = -1;
-}
-/**
- * @brief Gets a random boolean.
- */
-static int rand_bool (void)
-{
-   return (rand_double() > 0.5);
-}
-/**
- * @brief Gets an int in range [low,high].
- */
-static int rand_int_range( int low, int high )
-{
-   return (int)round( rand_double_range( (double)low, (double)high ) );
-}
-/**
- * @brief Gets a random double in the [0,1] range.
- */
-static double rand_double (void)
-{
-#ifdef RAND_ACCURATE
-   ssize_t ret;
-   uint64_t r;
-   ret = read( rand_fd, &r, sizeof(r) );
-   assert( ret == sizeof(r) );
-   return (double)r / (double)UINT64_MAX;
-#else /* RAND_ACCURATE */
-   return (double)rand() / (double)RAND_MAX;
-#endif /* RAND_ACCURATE */
-}
-/**
- * @brief Gets a random double in the range [low,high].
- */
-static double rand_double_range( double low, double high )
-{
-   return (low + (high-low)*rand_double());
-}
-/**
- * @brief Gets a random double following the exponential function for a given lambda.
- */
-static double rand_double_exponential( double lambda )
-{
-   return (-1./lambda) * log(rand_double());
-}
-/**
- * @brief Gets a random double that follows the gaussian distribution.
- */
-static double rand_double_gaussian (void)
-{
-   double theta, rsq;
-   theta = rand_double_range( 0., 2.*M_PI );
-   rsq   = rand_double_exponential( 0.5 );
-   return (sqrt(rsq) * cos(theta));
-}
 
 
 /**

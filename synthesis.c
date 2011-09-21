@@ -11,6 +11,8 @@
 
 #include <dq/vec3.h>
 
+#include "mem.h"
+
 
 #define PF     "%.18le"
 
@@ -58,11 +60,6 @@ static int kin_obj_split_free( kin_object_t *obj );
 static int kin_obj_split_dup( const kin_object_t *obj, kin_object_t *newobj );
 static int kin_obj_split_fin( kin_object_t *obj, synthesis_t *syn );
 static int kin_obj_split_save( const kin_object_t *obj, FILE *stream, const char *self );
-/* Helper functions. */
-static void* memdup( const void *base, size_t size );
-static void* memcalloc( size_t nmemb, size_t size );
-static void* memmalloc( size_t size );
-static void* memrealloc( void *ptr, size_t size );
 
 
 /**
@@ -1764,60 +1761,6 @@ synthesis_t* syn_dup( const synthesis_t *syn )
    new_syn = memmalloc( sizeof(synthesis_t) );
    syn_copy( new_syn, syn );
    return new_syn;
-}
-
-
-/**
- * @brief Duplicates memory.
- */
-static void* memdup( const void *base, size_t size )
-{
-   void *mem;
-   if (size == 0)
-      return NULL;
-   mem = memmalloc( size );
-   memcpy( mem, base, size );
-   return mem;
-}
-
-
-/**
- * @brief Calloc wrapper.
- */
-static void* memcalloc( size_t nmemb, size_t size )
-{
-   void *mem;
-   if (size == 0)
-      return NULL;
-   mem = calloc( nmemb, size );
-   assert( mem != NULL );
-   return mem;
-}
-
-
-/**
- * @brief Malloc wrapper.
- */
-static void* memmalloc( size_t size )
-{
-   void *mem;
-   if (size == 0)
-      return NULL;
-   mem = malloc( size );
-   assert( mem != NULL );
-   return mem;
-}
-
-
-/**
- * @brief Realloc wrapper.
- */
-static void* memrealloc( void *ptr, size_t size )
-{
-   void *mem;
-   mem = realloc( ptr, size );
-   assert( mem != NULL );
-   return mem;
 }
 
 
