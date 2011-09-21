@@ -923,17 +923,35 @@ static int synL_solve_nlopt( lua_State *L )
 }
 #endif /* HAVE_NLOPT */
 
+static int solver_parse_cmaes( lua_State *L, cmaes_options_t *opts, int ind )
+{
+   luaL_checktype(L,ind,LUA_TTABLE);
+   TBL_DBL( opts->lambda, L, ind, "lambda" );
+   return 0;
+}
 static int synL_solve_cmaes( lua_State *L )
 {
    cmaes_options_t opts;
    cmaes_info_t info;
    synthesis_t *syn = luaL_checksyn(L,1);
 
+   /* Parse options. */
+   cmaes_options_default( &opts );
+   if (lua_gettop(L) > 1)
+      solver_parse_cmaes( L, &opts, 2 );
+
    /* Solve. */
    syn_solve_cmaes( syn, &opts, &info );
 
    /* Push info. */
-   return 0;
+   lua_newtable(L);
+   lua_pushnumber(L,info.elapsed);
+   lua_setfield(L,-2,"elapsed");
+   lua_pushnumber(L,info.iterations);
+   lua_setfield(L,-2,"iterations");
+   lua_pushnumber(L,info.minf);
+   lua_setfield(L,-2,"fit_best");
+   return 1;
 }
 
 static int synL_print( lua_State *L )

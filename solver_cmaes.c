@@ -46,10 +46,26 @@ static void plucker_normalize( plucker_t *P )
 
 
 /**
+ * @brief Normalize synthesis.
+ */
+static void cmaes_normalize( synthesis_t *syn )
+{
+   int i;
+   kin_joint_t *kj;
+   for (i=0; i<syn->njoints; i++) {
+      kj = syn->joints[i];
+      if (kj->claim_S != NULL)
+         plucker_normalize( &kj->S );
+   }
+}
+
+
+/**
  * @brief Calculcates fitness, does not modify anything other than fvec.
  */
 static double cmaes_fitness( synthesis_t *syn )
 {
+   int i;
    double fit;
 
    syn_calc( syn );
@@ -75,11 +91,13 @@ static double cmaes_fitness( synthesis_t *syn )
 int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info )
 {
    cmaes_t evo;
-   int iter, p, i, dim, lambda, npop;
-   double fit, *fitvals, *stddev, *xfinal;
+   unsigned int iter;
+   int p, i, dim, lambda, npop;
+   double fit, *fitvals, *stddev;
+   const double *xfinal;
    double *const *pop;
-   kin_joint_t *kj;
    struct timeval tstart, tend;
+   const char *done;
 
    /* Parameters. */
    dim      = syn->n; /**< Dimension of the system. */
@@ -107,10 +125,15 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
    printf( "%s\n", cmaes_SayHello(&evo) );
    //cmaes_ReadSignals( &evo, "signals.par" );
 
+   /* Set stop fitness. */
+   evo.sp.stopTolFun        = 1e-10;
+   //evo.sp.stopMaxFunEvals   = ;
+   //evo.sp.stopMaxIter       = ;
+
    /* Start iterating fool! */
    gettimeofday( &tstart, NULL );
    iter = 0;
-   while (!cmaes_TestForTermination( &evo )) {
+   while ((done = cmaes_TestForTermination( &evo )) == NULL) {
       pop   = cmaes_SamplePopulation( &evo );
       npop  = cmaes_Get( &evo, "popsize" );
 
@@ -121,14 +144,10 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
          syn_map_from_x( syn, pop[p], syn->n );
 
          /* Reenforce plucker coordinates here */
-         for (i=0; i<syn->njoints; i++) {
-            kj = syn->joints[i];
-            if (kj->claim_S != NULL)
-               plucker_normalize( &kj->S );
-         }
+         cmaes_normalize( syn );
 
          /* Calculate and store fitness. */
-         fitvals[p] = cmaes_fitness( syn );;
+         fitvals[p] = cmaes_fitness( syn );
       }
 
       /* Update the distribution. */
@@ -142,18 +161,22 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
    if (info != NULL)
       info->elapsed = (unsigned long)((tend.tv_sec - tstart.tv_sec)
                     + (tend.tv_usec - tstart.tv_usec)/1000000);
+   printf("%s\n",done);
 
    /* Map. */
-   xfinal = cmaes_GetNew( &evo, "xbest" );
-   syn_map_from_x(   syn, xfinal, syn->n );
-   syn_map_to_x(     syn, NULL, NULL, syn->x );
+   xfinal = cmaes_GetPtr( &evo, "xbestever" );
+   syn_map_from_x(  syn, xfinal,     syn->n );
+   cmaes_normalize( syn );
+   syn_map_to_x(    syn, NULL, NULL, syn->x );
    fit = cmaes_fitness( syn );
-   if (info != NULL)
+   if (info != NULL) {
       info->minf = fit;
+      info->iterations = iter;
+   }
 
    /* Clean up. */
    cmaes_exit( &evo );
-   free( xfinal );
+   //free( xfinal );
 
    return 0;
 }

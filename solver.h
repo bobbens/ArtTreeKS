@@ -134,6 +134,7 @@ typedef struct cmaes_options_s {
 typedef struct cmaes_info_s {
    double minf;            /**< Minimum fitness found. */
    unsigned long elapsed;  /**< ELapsed time in seconds. */
+   unsigned int iterations; /**< Iterations done. */
 } cmaes_info_t;
 
 
