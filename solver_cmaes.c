@@ -109,7 +109,7 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
 {
    cmaes_t evo;
    int p, i, lambda, npop;
-   double fit, *fitvals, *stddev;
+   double fit, *fitvals, *stddev, mean;
    const double *xfinal;
    double *const *pop;
    struct timeval tstart, tend;
@@ -124,7 +124,7 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
    /* Parameters. */
    lambda   = opts_use->lambda;
    if (lambda == 0)
-      lambda = 4 + floor( 3*log(syn->n) );
+      lambda = 4 + floor( 3.*log(syn->n) ); /* Default as per the original paper. */
 
    /* Map to use as initial position. */
    syn_map_to_x( syn, NULL, NULL, syn->x );
@@ -132,8 +132,8 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
    /* Standard deviation. */
    stddev = calloc( syn->n, sizeof(double) );
    for (i=0; i<syn->n; i++) {
-      syn->x[i] = 0.5;
-      stddev[i] = 0.5; /* Todo smarter initialization. */
+      syn->x[i] = (syn->ub[i]+syn->lb[i])/2.;
+      stddev[i] = (syn->ub[i]-syn->lb[i])/2.; /* Todo smarter initialization. */
    }
 
    /* Initialize stuff. */
@@ -162,6 +162,7 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
       npop  = cmaes_Get( &evo, "popsize" );
 
       /* Here we must analyze each member in the population. */
+      mean = 0.;
       for (p=0; p<npop; p++) {
 
          /* First map to synthesis. */
@@ -172,7 +173,9 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
 
          /* Calculate and store fitness. */
          fitvals[p] = cmaes_fitness( syn );
+         mean      += fitvals[p];
       }
+      mean /= (double) npop;
 
       /* Update the distribution. */
       cmaes_UpdateDistribution( &evo, fitvals );
@@ -183,9 +186,9 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
       gettimeofday( &tend, NULL );
       info_out.elapsed = (unsigned long)((tend.tv_sec - tstart.tv_sec)
                        + (tend.tv_usec - tstart.tv_usec)/1000000);
-      printf( "[%03d] Best: %.3e, Cur: %.3e\n",
+      printf( "[%03d] Best: %.3e, Cur: %.3e, Mean: %.3e\n",
             info_out.iterations, info_out.minf,
-            cmaes_Get( &evo, "fitness" ) );
+            cmaes_Get( &evo, "fitness" ), mean );
       if (must_stop( opts, &info_out ))
          break;
    }
