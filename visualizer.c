@@ -309,7 +309,7 @@ static int vis_updateDataInterpolate( GLfloat *data, const synthesis_t *syn,
 static int vis_blenderData( FILE *fout, const synthesis_t *syn,
       int frame, double state, const double *angles )
 {
-   int i, j, p, c, f;
+   int i, j, f;
    dq_t T, R, L, P;
    double s[3], s0[3], o[3], a[3], z[3], ang;
    double M[3][3];
@@ -386,8 +386,6 @@ static int vis_blenderData( FILE *fout, const synthesis_t *syn,
 
    /* Fill memory.
     * We're going to use GL_LINES, so we have to store start and end point of every line. */
-   p = 0;
-   c = 0;
    f = frame;
    for (i=0; i<syn->nbranches; i++) {
       br = &syn->branches[i];
@@ -511,7 +509,7 @@ static int vis_blenderData( FILE *fout, const synthesis_t *syn,
 static int vis_povrayData( FILE *fout, const synthesis_t *syn,
       int frame, double state, const double *angles )
 {
-   int i, j, p, c, f;
+   int i, j, f;
    dq_t T, R, L, P;
    double s[3], s0[3], o[3], a[3], z[3], ang;
    double M[3][3];
@@ -582,8 +580,6 @@ static int vis_povrayData( FILE *fout, const synthesis_t *syn,
 
    /* Fill memory.
     * We're going to use GL_LINES, so we have to store start and end point of every line. */
-   p = 0;
-   c = 0;
    f = frame;
    for (i=0; i<syn->nbranches; i++) {
       br = &syn->branches[i];
