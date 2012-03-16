@@ -329,7 +329,7 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
       if ((tcp->claim_vel != NULL) &&
             (tcp->V.mask_len > m) &&
             (tcp->V.mask_mask[m])) {
-			pd = &((plucker_t*) tcp->fvec_vel.mask_vec)[m]; /* Result. */
+         pd = &((plucker_t*) tcp->fvec_vel.mask_vec)[m]; /* Result. */
          /* Initialize result. */
          plucker_zero( pd );
          /* Straight forward:
@@ -341,7 +341,7 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
             lie_joint_mac( pd, d[m], &j->S_cur );
          }
          /* Copy result. */
-			pV = &((plucker_t*) tcp->V.mask_vec)[m]; /* Static data. */
+         pV = &((plucker_t*) tcp->V.mask_vec)[m]; /* Static data. */
          plucker_sub( pd, pd, pV );
       }
 
@@ -382,8 +382,8 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
             lie_joint_mac( &pa, d[m], &acc );
          }
          /* Copy result. */
-			pd = (plucker_t*) branch->tcp->d.tcp.fvec_acc.mask_vec;
-			pA = (plucker_t*) branch->tcp->d.tcp.A.mask_vec;
+         pd = (plucker_t*) branch->tcp->d.tcp.fvec_acc.mask_vec;
+         pA = (plucker_t*) branch->tcp->d.tcp.A.mask_vec;
          plucker_sub( &pd[m], &pa, &pA[m] );
       }
    }
@@ -966,8 +966,8 @@ static int kin_obj_chain_save( const kin_object_t *obj, FILE *stream, const char
 static int kin_obj_tcp_free( kin_object_t *obj )
 {
    free( obj->d.tcp.P );
-	mm_cleanup( &obj->d.tcp.V );
-	mm_cleanup( &obj->d.tcp.A );
+   mm_cleanup( &obj->d.tcp.V );
+   mm_cleanup( &obj->d.tcp.A );
    free( obj->d.tcp.fvec_pos );
    mm_cleanup( &obj->d.tcp.fvec_vel );
    mm_cleanup( &obj->d.tcp.fvec_acc );
@@ -987,9 +987,9 @@ static int kin_obj_tcp_dup( const kin_object_t *obj, kin_object_t *newobj )
       newobj->d.tcp.P = memdup( obj->d.tcp.P, obj->d.tcp.nP * sizeof(dq_t) );
    }
    if (obj->d.tcp.V.chunk != 0)
-		mm_initDup( &newobj->d.tcp.V, &obj->d.tcp.V );
+      mm_initDup( &newobj->d.tcp.V, &obj->d.tcp.V );
    if (obj->d.tcp.A.chunk != 0)
-		mm_initDup( &newobj->d.tcp.A, &obj->d.tcp.A );
+      mm_initDup( &newobj->d.tcp.A, &obj->d.tcp.A );
    return 0;
 }
 /**
@@ -999,7 +999,7 @@ static int kin_obj_tcp_dup( const kin_object_t *obj, kin_object_t *newobj )
  */
 static int kin_obj_tcp_fin( kin_object_t *obj, synthesis_t *syn )
 {
-	double *d;
+   double *d;
 
    /* Claims. */
    assert( obj->d.tcp.fvec_pos == NULL );
@@ -1012,14 +1012,14 @@ static int kin_obj_tcp_fin( kin_object_t *obj, synthesis_t *syn )
          6*(syn->L-1), (double*)obj->d.tcp.fvec_pos, "TCP Pos" );
 
    /* Derivatives. */
-	d = memcalloc( syn->L, sizeof(plucker_t) );
+   d = memcalloc( syn->L, sizeof(plucker_t) );
    /* Velocity. */
    if (obj->d.tcp.V.chunk != 0) {
       assert( obj->d.tcp.fvec_vel.chunk == 0 );
       assert( obj->d.tcp.claim_vel == NULL );
 
-		mm_initMask( &obj->d.tcp.fvec_vel, sizeof(plucker_t),
-				obj->d.tcp.V.mask_len, d, obj->d.tcp.V.mask_mask );
+      mm_initMask( &obj->d.tcp.fvec_vel, sizeof(plucker_t),
+            obj->d.tcp.V.mask_len, d, obj->d.tcp.V.mask_mask );
       obj->d.tcp.claim_vel = syn_claim_fvec( syn, 6*obj->d.tcp.fvec_vel.map_len,
             6*obj->d.tcp.fvec_vel.map_len, (double*)obj->d.tcp.fvec_vel.map_vec,
             "TCP Vel" );
@@ -1029,13 +1029,13 @@ static int kin_obj_tcp_fin( kin_object_t *obj, synthesis_t *syn )
       assert( obj->d.tcp.fvec_acc.chunk == 0 );
       assert( obj->d.tcp.claim_acc == NULL );
 
-		mm_initMask( &obj->d.tcp.fvec_acc, sizeof(plucker_t),
-				obj->d.tcp.A.mask_len, d, obj->d.tcp.A.mask_mask );
+      mm_initMask( &obj->d.tcp.fvec_acc, sizeof(plucker_t),
+            obj->d.tcp.A.mask_len, d, obj->d.tcp.A.mask_mask );
       obj->d.tcp.claim_acc = syn_claim_fvec( syn, 6*obj->d.tcp.fvec_acc.map_len,
             6*obj->d.tcp.fvec_acc.map_len, (double*)obj->d.tcp.fvec_acc.map_vec,
             "TCP Acc" );
    }
-	free(d);
+   free(d);
 
    /* Add tcp to list. */
    syn_tcp_add( syn, obj );
@@ -1431,7 +1431,7 @@ int kin_obj_tcp_velocity( kin_object_t *tcp,
    assert( tcp->type == KIN_TYPE_TCP );
 
    assert( tcp->d.tcp.V.chunk == 0 );
-	mm_initMask( &tcp->d.tcp.V, sizeof(plucker_t), num, (void*)vel, mask );
+   mm_initMask( &tcp->d.tcp.V, sizeof(plucker_t), num, (void*)vel, mask );
    return 0;
 }
 
@@ -1446,7 +1446,7 @@ int kin_obj_tcp_acceleration( kin_object_t *tcp,
    assert( tcp->type == KIN_TYPE_TCP );
 
    assert( tcp->d.tcp.A.chunk == 0 );
-	mm_initMask( &tcp->d.tcp.A, sizeof(plucker_t), num, (void*)acc, mask );
+   mm_initMask( &tcp->d.tcp.A, sizeof(plucker_t), num, (void*)acc, mask );
    return 0;
 }
 
