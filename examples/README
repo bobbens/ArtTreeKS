@@ -1,0 +1,25 @@
+This example is one of the many solutions found for the task presented in the
+ARK2012 paper:
+
+Design of Multi-fingered Robotic Hands for Finite and Infinitesimal Tasks using Kinematic Synthesis
+E. Simo-Serra, A. Perez, H. Moon and N. Robson
+Advances in Robot Kinematics (ARK), 2012
+
+This shows how to use Lua to generate and visualize solutions. In order for
+these scripts to work you'll need the synthesis.so placed where Lua can access
+it. This can be solved by copying synthesis.so here.
+
+Some things you can do:
+
+1) Visualize the solution:
+   $ lua vis.lua velsyn.lua
+
+2) Generate more solutions:
+   $ lua experiment.lua
+
+3) Check what the Jacobian matrix looks like for different systems:
+   $ lua sparsity.lua
+
+4) Generate random topologies and solve them:
+   $ lua test.lua
+
