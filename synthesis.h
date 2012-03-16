@@ -3,6 +3,57 @@
 #ifndef _SYNTHESIS_H
 #  define _SYNTHESIS_H
 
+/**
+ * @mainpage ArtTreeKS doxygen documentation
+ * @author Edgar Simo-Serra <esimo@iri.upc.edu>
+ * @version 1.0
+ * @date March 2012
+ *
+ * @section License
+ *
+ @verbatim
+    Copyright 2010-2012 Edgar Simo-Serra
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ @endverbatim
+ *
+ *
+ * @section Overview
+ *
+ * This is a set of tools for performing dimensional kinematic synthesis on tree
+ * topologies.
+ *
+ *
+ * @section Changelog
+ *
+ * - Version 1.0, March 2011
+ *    - Initial Revision
+ *
+ *
+ * @section Citation
+ *
+ * If you use this software, please cite it:
+ *
+ * @code
+ * @InProceedings{SimoSerraARK2012,
+ *    author    = {E. Simo-Serra, A. Perez-Gracia, H. Moon and N. Robson},
+ *    title     = "Design of Multi-fingered Robotic Hands for Finite and Infinitesimal Tasks using Kinematic Synthesis"
+ *    booktitle = "Advances in Robot Kinematics (ARK)",
+ *    year      = "2012",
+ * }
+ * @endcode
+ */
 
 #include <stdio.h>
 #include <malloc.h>
@@ -34,7 +85,7 @@ typedef struct kin_object_s kin_object_t;
 typedef enum kin_joint_type_e {
    JOINT_TYPE_NULL,        /**< Invalid or non-existant joint. */
    JOINT_TYPE_REVOLUTE,    /**< Revolutoin joint. */
-   JOINT_TYPE_PRISMATIC,   /**< Unsupported. */
+   JOINT_TYPE_PRISMATIC,   /**< Unsupported at the moment. */
 } kin_joint_type_t;
 
 

@@ -1,3 +1,8 @@
+/*
+ * ArtTreeKS: Finite dimensional kinematic synthesis for articulated trees
+ * Copyright(C) 2010-2012 Edgar Simo-Serra <esimo@iri.upc.edu>
+ * License: see synthesis.h
+*/
 
 
 #ifndef MAP_MASK_H
