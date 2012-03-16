@@ -1,9 +1,9 @@
 
 
 
-MINPACK 	:= yes
+MINPACK 	:= no
 CMINPACK := yes
-NLOPT		:= yes
+NLOPT		:= no
 
 
 LIB		:= synthesis.so
