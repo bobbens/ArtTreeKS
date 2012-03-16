@@ -5,11 +5,11 @@ require "kin_util"
 require "util"
 
 
-model = { 0, 3 }
+model = { 2, 3, 3 }
 b     = #model-1
 mp    = 3
-mv    = 2
-ma    = 0
+mv    = 3
+ma    = 3
 
 
 -- Actual data for manipulation

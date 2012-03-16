@@ -16,7 +16,10 @@ end
 
 
 function opt_cmaes( s )
-   local cmaes_opts = { lambda=1e4 }
+   local cmaes_opts = {
+         converge=false,
+         lambda=1e4
+         }
    local res = s:solver_cmaes( cmaes_opts )
    local e = res.elapsed
    print( string.format( "fitness = %.3e in %d:%02d:%02d", res.fit_best, e/3600, (e/60)%60, e%60) )
