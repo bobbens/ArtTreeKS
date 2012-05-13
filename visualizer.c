@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include <png.h>
+#include <zlib.h>
 
 #include "SDL.h"
 #include "SDL_opengl.h"
