@@ -937,6 +937,7 @@ void cmaes_WriteToFilePtr(cmaes_t *t, const char *key, FILE *fp)
   char *s = "few";
   if (key == NULL)
     key = s; 
+  (void) keystart;
   keystart = key; /* for debugging purpose */ 
   keyend = key + strlen(key);
 
