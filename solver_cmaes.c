@@ -114,7 +114,7 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
 {
    cmaes_t evo;
    int p, i, lambda, npop;
-   double fit, *fitvals, *stddev, mean;
+   double *fitvals, *stddev, mean;
    const double *xfinal;
    double *const *pop;
    struct timeval tstart, tend;
@@ -206,7 +206,6 @@ int syn_solve_cmaes( synthesis_t *syn, cmaes_options_t *opts, cmaes_info_t *info
    syn_map_from_x( syn, xfinal,     syn->n );
    cmaes_converge( syn, opts_use );
    syn_map_to_x(   syn, NULL, NULL, syn->x );
-   fit = cmaes_fitness( syn );
    if (info != NULL)
       memcpy( info, &info_out, sizeof(cmaes_info_t) );
 
