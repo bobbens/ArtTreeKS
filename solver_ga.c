@@ -21,7 +21,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
-#include <dq_vec3.h>
+#include <dq/vec3.h>
 
 #include "synthesis.h"
 #include "rand.h"
