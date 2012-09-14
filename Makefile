@@ -50,7 +50,7 @@ clean:
 	$(RM) $(OBJS) $(APP)
 
 $(LIB): $(LIB_OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -shared $(LIB_OBJS) -o $(LIB)
+	$(CC) $(CFLAGS) -shared $(LIB_OBJS) -o $(LIB) $(LDFLAGS)
 
 
 
