@@ -36,6 +36,7 @@ void lie_joint_bracket( plucker_t *O,
 void plucker_zero( plucker_t *p );
 void plucker_normalize( plucker_t *P );
 void plucker_from_dq( plucker_t *p, const dq_t Q );
+void plucker_from_dqT( plucker_t *p, const dq_t Q );
 void plucker_sub( plucker_t *o, const plucker_t *p, const plucker_t *q );
 
 

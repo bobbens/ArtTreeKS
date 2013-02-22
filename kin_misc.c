@@ -89,6 +89,22 @@ void plucker_from_dq( plucker_t *p, const dq_t Q )
 
 
 /**
+ * @brief Obtains the screw orientation from the dual quaternion.
+ *    @param[out] p Screw element obtained from the dual quaternion.
+ *    @param[in] Q Dual quaternion to obtain screw element from.
+ */
+void plucker_from_dqT( plucker_t *p, const dq_t Q )
+{
+   p->s[0]  = 0.;
+   p->s[1]  = 0.;
+   p->s[2]  = 0.;
+   p->s0[0] = Q[1];
+   p->s0[1] = Q[2];
+   p->s0[2] = Q[3];
+}
+
+
+/**
  * @brief Subtracts a plucker coordinate from another.
  *    @param[out] o Output plucker coordinate.
  *    @param[in] p Input plucker coordinate to subtract from.
