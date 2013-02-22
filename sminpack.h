@@ -14,7 +14,7 @@
 #include <cminpack.h>
 
 
-int sminpack( minpack_func_mn fcn, void *p,
+int sminpack( cminpack_func_mn fcn, void *p,
       int m, int n, double *x, double *fvec,
       double ftol, double xtol, double gtol, int maxfev,
       double epsfcn, int mode, double factor, int nprint,
