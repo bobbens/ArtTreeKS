@@ -110,8 +110,9 @@ static double ang_diff( double a, double b )
  */
 static void vis_propagatePosition( double next[3], double prop[3],
       const double cur[3], const double n[3],
-      const double s[3], const double s0[3] )
+      const double s[3], const double s0[3], kin_joint_type_t type )
 {
+   (void) type;
    int i;
    double x1[3], x2[3], dn[3], A[3][3], b[3];
    const double *d1, *d2, *c2;
@@ -432,11 +433,23 @@ static int vis_blenderData( FILE *fout, const synthesis_t *syn,
          }
          else
             ang = kj->pos_cur;
-         dq_cr_rotation_plucker( R, ang, kj->S.s, kj->S.s0 );
+         /* Handle the motion. */
+         switch (kj->type) {
+            case JOINT_TYPE_REVOLUTE:
+               dq_cr_rotation_plucker( R, ang, kj->S.s, kj->S.s0 );
+               break;
+            case JOINT_TYPE_PRISMATIC:
+               dq_cr_translation( R, ang, kj->S.s );
+               break;
+
+            default:
+               assert( "unknown joint type" == NULL );
+               break;
+         }
          dq_op_mul( T, T, R );
 
          /* Calculate displacement from last. */
-         vis_propagatePosition( next, prop, o, z, s, s0 );
+         vis_propagatePosition( next, prop, o, z, s, s0, kj->type );
          memcpy( z, s, sizeof(double)*3 );
 
          /* Copy end. */
@@ -626,11 +639,22 @@ static int vis_povrayData( FILE *fout, const synthesis_t *syn,
          }
          else
             ang = kj->pos_cur;
-         dq_cr_rotation_plucker( R, ang, kj->S.s, kj->S.s0 );
+         switch (kj->type) {
+            case JOINT_TYPE_REVOLUTE:
+               dq_cr_rotation_plucker( R, ang, kj->S.s, kj->S.s0 );
+               break;
+            case JOINT_TYPE_PRISMATIC:
+               dq_cr_translation( R, ang, kj->S.s );
+               break;
+
+            default:
+               assert( "unknown joint type" == NULL );
+               break;
+         }
          dq_op_mul( T, T, R );
 
          /* Calculate displacement from last. */
-         vis_propagatePosition( next, prop, o, z, s, s0 );
+         vis_propagatePosition( next, prop, o, z, s, s0, kj->type );
          memcpy( z, s, sizeof(double)*3 );
 
          /* Copy end. */
@@ -759,14 +783,25 @@ static int vis_updateData( GLfloat *data, GLfloat *col, const synthesis_t *syn,
          }
          else
             ang = kj->pos_cur;
-         dq_cr_rotation_plucker( R, ang, kj->S.s, kj->S.s0 );
+         switch (kj->type) {
+            case JOINT_TYPE_REVOLUTE:
+               dq_cr_rotation_plucker( R, ang, kj->S.s, kj->S.s0 );
+               break;
+            case JOINT_TYPE_PRISMATIC:
+               dq_cr_translation( R, ang, kj->S.s );
+               break;
+
+            default:
+               assert( "unknown joint type" == NULL );
+               break;
+         }
          dq_op_mul( T, T, R );
 
          /* Copy start. */
          fcopy( &data[3*(p++)], o );
 
          /* Calculate displacement from last. */
-         vis_propagatePosition( next, prop, o, z, s, s0 );
+         vis_propagatePosition( next, prop, o, z, s, s0, kj->type );
          memcpy( z, s, sizeof(double)*3 );
 
          /* Copy end. */
@@ -1010,6 +1045,9 @@ int visualize( const synthesis_t *syn_a_in, const synthesis_t *syn_b_in )
    synthesis_t *syn, *syn_b;
    dq_t *syn_P;
    double *angles_cmp, *angles_cur;
+
+   /* Init. */
+   state = 0.;
 
    /* Duplicate so we can mess with it. */
    syn      = NULL;
