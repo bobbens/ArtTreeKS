@@ -84,7 +84,7 @@ typedef struct kin_object_s kin_object_t;
  */
 typedef enum kin_joint_type_e {
    JOINT_TYPE_NULL,        /**< Invalid or non-existant joint. */
-   JOINT_TYPE_REVOLUTE,    /**< Revolutoin joint. */
+   JOINT_TYPE_REVOLUTE,    /**< Revolute joint. */
    JOINT_TYPE_PRISMATIC,   /**< Unsupported at the moment. */
 } kin_joint_type_t;
 

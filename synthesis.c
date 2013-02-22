@@ -305,14 +305,28 @@ int syn_calc_branch( synthesis_t *syn, kin_branch_t *branch )
          for (i=0; i<branch->njoints; i++) {
             j = branch->joints[i];
 
-            /* Store current joint position. */
+            /* Calculate current joint position. */
             dq_cr_line_plucker( S, j->S.s, j->S.s0 );
             dq_op_f2g( S, T, S );
-            plucker_from_dq( &j->S_cur, S );
 
-            /* Update propagation. */
+            /* Calculate current joint position and calculate transformation
+             * based on the joint type. */
             d = (double*) j->pos.values.mask_vec;
-            dq_cr_rotation_plucker( R, d[m-1], j->S.s, j->S.s0 );
+            switch (j->type) {
+               case JOINT_TYPE_REVOLUTE:
+                  plucker_from_dq( &j->S_cur, S ); /* Full dual quaternion. */
+                  dq_cr_rotation_plucker( R, d[m-1], j->S.s, j->S.s0 );
+                  break;
+
+               case JOINT_TYPE_PRISMATIC:
+                  plucker_from_dqT( &j->S_cur, S ); /* Only translational part. */
+                  dq_cr_translation( R, d[m-1], j->S.s );
+                  break;
+
+               default:
+                  assert( "unknown joint type" == NULL );
+                  break;
+            }
             dq_op_mul( T, T, R );
          }
 
@@ -580,13 +594,31 @@ int kin_joint_claim( synthesis_t *syn, kin_joint_t *joint )
 
    /* Claim joint axis if necessary. */
    if (!joint->const_S) {
-      joint->claim_S    = syn_claim_x(    syn, 6, 4,
-            (double*)&joint->S, (double*)&joint->S_lb, (double*)&joint->S_ub,
-            "Joint Plucker" );
-      /* The conditions are not independent as they are what lowers the
-       * dimension from 6->4. */
-      joint->claim_cond = syn_claim_fvec( syn, 2, 0, joint->cond,
-            "Joint Plucker Cond" );
+      switch (joint->type) {
+         case JOINT_TYPE_REVOLUTE:
+            joint->claim_S    = syn_claim_x(    syn, 6, 4,
+                  (double*)&joint->S, (double*)&joint->S_lb, (double*)&joint->S_ub,
+                  "Joint Plucker (R)" );
+            /* The conditions are not independent as they are what lowers the
+             * dimension from 6->4. */
+            joint->claim_cond = syn_claim_fvec( syn, 2, 0, joint->cond,
+                  "Joint Plucker Cond (R)" );
+            break;
+
+         case JOINT_TYPE_PRISMATIC:
+            joint->claim_S    = syn_claim_x(    syn, 3, 2,
+                  (double*)&joint->S.s, (double*)&joint->S_lb.s, (double*)&joint->S_ub.s,
+                  "Joint Plucker (P)" );
+            /* The conditions are not independent as they are what lowers the
+             * dimension from 3->2. */
+            joint->claim_cond = syn_claim_fvec( syn, 1, 0, joint->cond,
+                  "Joint Plucker Cond (P)" );
+            break;
+
+         default:
+            assert( "unknown joint type" == NULL );
+            break;
+      }
    }
 
    return 0;
@@ -603,9 +635,21 @@ int kin_joint_claim( synthesis_t *syn, kin_joint_t *joint )
 void kin_joint_setPlucker( kin_joint_t *joint, double s[3], double s0[3] )
 {
    assert( joint->type != JOINT_TYPE_NULL );
-   assert( fabs(vec3_dot( s, s0 )) <= DQ_PRECISION );
-   memcpy( joint->S.s,  s,  sizeof(double)*3 );
-   memcpy( joint->S.s0, s0, sizeof(double)*3 );
+   switch (joint->type) {
+      case JOINT_TYPE_REVOLUTE:
+         assert( fabs(vec3_dot( s, s0 )) <= DQ_PRECISION );
+         memcpy( joint->S.s,  s,  sizeof(double)*3 );
+         memcpy( joint->S.s0, s0, sizeof(double)*3 );
+         break;
+      case JOINT_TYPE_PRISMATIC:
+         memcpy( joint->S.s,  s,  sizeof(double)*3 );
+         memset( joint->S.s0, 0,  sizeof(double)*3 );
+         break;
+
+      default:
+         assert( "unknown joint type" == NULL );
+         break;
+   }
 }
 
 
@@ -651,7 +695,18 @@ static void kin_joint_data_set( kin_joint_data_t *data, double *x, int len, doub
 void kin_joint_setPositions( kin_joint_t *joint, double *x, int len )
 {
    /* No mask, we always need position. */
-   kin_joint_data_set( &joint->pos, x, len, 0., 2.*M_PI, NULL );
+   switch (joint->type) {
+      case JOINT_TYPE_REVOLUTE:
+         kin_joint_data_set( &joint->pos, x, len, 0., 2.*M_PI, NULL );
+         break;
+      case JOINT_TYPE_PRISMATIC:
+         kin_joint_data_set( &joint->pos, x, len, -1000., 1000., NULL );
+         break;
+
+      default:
+         assert( "unknown joint type" == NULL );
+         break;
+   }
 }
 
 
@@ -663,7 +718,18 @@ void kin_joint_setPositions( kin_joint_t *joint, double *x, int len )
  */
 void kin_joint_setVelocities( kin_joint_t *joint, double *v, int len, const int *mask )
 {
-   kin_joint_data_set( &joint->vel, v, len, -10.*M_PI, 10.*M_PI, mask );
+   switch (joint->type) {
+      case JOINT_TYPE_REVOLUTE:
+         kin_joint_data_set( &joint->vel, v, len, -10.*M_PI, 10.*M_PI, mask );
+         break;
+      case JOINT_TYPE_PRISMATIC:
+         kin_joint_data_set( &joint->vel, v, len, -10000., 10000., mask );
+         break;
+
+      default:
+         assert( "unknown joint type" == NULL );
+         break;
+   }
 }
 
 
@@ -675,7 +741,18 @@ void kin_joint_setVelocities( kin_joint_t *joint, double *v, int len, const int 
  */
 void kin_joint_setAccelerations( kin_joint_t *joint, double *a, int len, const int *mask )
 {
-   kin_joint_data_set( &joint->acc, a, len, -10.*M_PI, 10.*M_PI, mask );
+   switch (joint->type) {
+      case JOINT_TYPE_REVOLUTE:
+         kin_joint_data_set( &joint->acc, a, len, -10.*M_PI, 10.*M_PI, mask );
+         break;
+      case JOINT_TYPE_PRISMATIC:
+         kin_joint_data_set( &joint->acc, a, len, -10000., 10000., mask );
+         break;
+
+      default:
+         assert( "unknown joint type" == NULL );
+         break;
+   }
 }
 
 
@@ -903,7 +980,13 @@ static int kin_obj_chain_save( const kin_object_t *obj, FILE *stream, const char
       kj = &obj->d.chain.joints[i];
 
       /* Joint information and creation. */
-      str = "revolute";
+      switch (kj->type) {
+         case JOINT_TYPE_REVOLUTE:  str = "revolute";  break;
+         case JOINT_TYPE_PRISMATIC: str = "prismatic"; break;
+         default:
+            assert( "unknown joint type" == NULL );
+            break;
+      }
       fprintf( stream,
             "   -- Joint %d\n"
             "   local j = kin_joint.new( \"%s\" )\n",
@@ -1369,7 +1452,8 @@ int kin_obj_chain_joint_add( kin_object_t *chain, kin_joint_t *joint )
 {
    assert( chain->type == KIN_TYPE_CHAIN );
 
-   chain->d.chain.joints = memrealloc( chain->d.chain.joints, sizeof(kin_joint_t)*(chain->d.chain.njoints+1) );
+   chain->d.chain.joints = memrealloc( chain->d.chain.joints,
+         sizeof(kin_joint_t)*(chain->d.chain.njoints+1) );
    kin_joint_dupInit( &chain->d.chain.joints[chain->d.chain.njoints], joint );
    chain->d.chain.njoints++;
 
@@ -1750,7 +1834,18 @@ int syn_fk( const synthesis_t *syn, dq_t *fk, const double *angles )
          kj = kb->joints[j];
 
          /* Must propagate the joint rotation. */
-         dq_cr_rotation_plucker( R, kj->pos_cur, kj->S.s, kj->S.s0 );
+         switch (kj->type) {
+            case JOINT_TYPE_REVOLUTE:
+               dq_cr_rotation_plucker( R, kj->pos_cur, kj->S.s, kj->S.s0 );
+               break;
+            case JOINT_TYPE_PRISMATIC:
+               dq_cr_translation( R, kj->pos_cur, kj->S.s );
+               break;
+
+            default:
+               assert( "unknown joint type" == NULL );
+               break;
+         }
          dq_op_mul( fk[i], fk[i], R );
       }
 
