@@ -114,7 +114,8 @@ static int ga_pop_eliteness( ga_population_t *pop, const ga_population_t *old,
       const ga_options_t *opts );
 static int ga_pop_crossover( ga_population_t *pop, const ga_population_t *old,
       const ga_options_t *opts );
-static int ga_pop_mutate( ga_population_t *pop, const ga_options_t *opts );
+static int ga_pop_mutate( ga_population_t *pop, const ga_population_t *old,
+      const ga_options_t *opts );
 static int ga_pop_converge( ga_population_t *pop, const ga_options_t *opts );
 static int ga_pop_evaluate( ga_population_t *pop, const ga_options_t *opts, ga_info_t *info );
 static int ga_pop_sort( ga_population_t *pop, const ga_options_t *opts );
@@ -893,13 +894,15 @@ static int ga_pop_crossover( ga_population_t *pop, const ga_population_t *old,
 /**
  * @brief Mutates the buggers.
  */
-static int ga_pop_mutate( ga_population_t *pop, const ga_options_t *opts )
+static int ga_pop_mutate( ga_population_t *pop, const ga_population_t *old,
+      const ga_options_t *opts )
 {
-   int i, p;
+   int i, n, p;
    double r;
 
-   p = (int)round(((double)pop->pop) * opts->eliteness);
-   for (i=p; i<pop->pop; i++) {
+   p = MIN( old->pop, opts->population );
+   n = (int)round( ((double)p)*opts->eliteness );
+   for (i=n; i<pop->pop; i++) {
       r = rand_double();
       if (r < opts->mutation)
          ga_ent_mutate( &pop->entities[i], pop->parent, opts );
@@ -1200,7 +1203,7 @@ int syn_solve_ga( synthesis_t *syn, ga_options_t *opts, ga_info_t *info )
       LOG( v>2, "   crossover: %d\n", pop[pc].pop );
 
       /* Mutation. */
-      ga_pop_mutate(    &pop[pc], opts_use );
+      ga_pop_mutate(    &pop[pc], &pop[po], opts_use );
       LOG( v>2, "   mutated\n" );
 
       /* Convergence. */
